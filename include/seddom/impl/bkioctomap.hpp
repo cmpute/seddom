@@ -277,6 +277,7 @@ namespace seddom
     {
         PROFILE_FUNCTION;
         DEBUG_WRITE("Insert pointcloud: " << "cloud size = " << cloud->size() << ", origin = " << origin);
+        _occluded_blocks.clear(); // generate occlusion for every frame
 
         PROFILE_BLOCK("Downsample hits");
         PointCloudXYZL::Ptr sampled_hits = downsample<pcl::PointXYZL>(cloud, ds_resolution);
@@ -322,6 +323,7 @@ namespace seddom
 
         ////////// Training //////////
         PROFILE_SPLIT("Train free beams");
+        // TODO: add option to disable occlusion function
         auto in_blocks = get_blocks_in_bbox(min_pt, max_pt, true); // TODO: add ground range filter
         float search_range = _block_size / 2 * SQ3 + _ell;
 
@@ -345,7 +347,17 @@ namespace seddom
 
             PROFILE_THREAD_SPLIT("Query rtree");
             auto rit = beam_tree.qbegin(bgi::within(bq));
-            if (rit != beam_tree.qend())
+            if (rit == beam_tree.qend())
+            {
+                PROFILE_THREAD_BLOCK("Occluded beam");
+                // this block is occluded if it lies on some extended beams but not on any actual beams
+                p1 = { phi - rs, theta - rs, 0 };
+                p2 = { phi - rs, theta - rs, r };
+                bq = { p1, p2 };
+                if (beam_tree.qbegin(bgi::within(bq)) != beam_tree.qend())
+                    _occluded_blocks.insert(hkey);
+            }
+            else
             {
                 // add to training data
                 // TODO: skip predicted blocks

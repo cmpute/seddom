@@ -240,6 +240,7 @@ namespace seddom
         float _ell; // length-scale
 
         BlockMap _blocks;
+        BlockSet _occluded_blocks;
         ChunkSet _chunks;
         Eigen::Rand::Vmt19937_64 _rng;
 
