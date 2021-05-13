@@ -37,3 +37,6 @@ data/
 # Dump files
 *.bin
 *.prof
+
+# notes
+TODO.md
