@@ -322,7 +322,8 @@ namespace seddom
 
         ////////// Training //////////
         PROFILE_SPLIT("Train free beams");
-        auto in_blocks = get_blocks_in_bbox(min_pt, max_pt, true); // TODO: add ground range filter
+        // TODO: add ground range filter
+        auto in_blocks = get_mapped_blocks_in_bbox(min_pt, max_pt, origin);
         float search_range = _block_size / 2 * SQ3 + _ell;
 
 #ifdef OPENMP
@@ -554,30 +555,76 @@ namespace seddom
 
     OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
     OCTOMAP_CLASS::get_blocks_in_bbox(
-        const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, bool limit_range) const
+        const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max) const
     {
         std::vector<BlockHashKey> blocks;
-        if (limit_range)
-            for (float x = lim_min.x - _block_size; x <= lim_max.x + 2 * _block_size; x += _block_size)
-                for (float y = lim_min.y - _block_size; y <= lim_max.y + 2 * _block_size; y += _block_size)
-                    for (float z = lim_min.z - _block_size; z <= lim_max.z + 2 * _block_size; z += _block_size)
-                        blocks.push_back(loc_to_block_key(x, y, z));
-        else
+        for (float x = lim_min.x - _block_size; x <= lim_max.x + 2 * _block_size; x += _block_size)
+            for (float y = lim_min.y - _block_size; y <= lim_max.y + 2 * _block_size; y += _block_size)
+                for (float z = lim_min.z - _block_size; z <= lim_max.z + 2 * _block_size; z += _block_size)
+                    blocks.push_back(loc_to_block_key(x, y, z));
+
+        return blocks;
+    }
+
+    OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
+    OCTOMAP_CLASS::get_blocks_in_bbox(
+        const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, const pcl::PointXYZ &origin) const
+    {
+        if (_max_range < 0)
+            return get_blocks_in_bbox(lim_min, lim_max);
+
+        std::vector<BlockHashKey> blocks;
+        float range2 = _max_range * _max_range;
+        for (float x = lim_min.x - _block_size; x <= lim_max.x + 2 * _block_size; x += _block_size)
         {
-            float range2 = _max_range * _max_range;
-            for (float x = lim_min.x - _block_size; x <= lim_max.x + 2 * _block_size; x += _block_size)
+            float x2 = x*x;
+            for (float y = lim_min.y - _block_size; y <= lim_max.y + 2 * _block_size; y += _block_size)
             {
-                float x2 = x*x;
-                for (float y = lim_min.y - _block_size; y <= lim_max.y + 2 * _block_size; y += _block_size)
-                {
-                    float y2 = y*y;
-                    for (float z = lim_min.z - _block_size; z <= lim_max.z + 2 * _block_size; z += _block_size)
-                        if (x2 + y2 + z*z < range2)
-                            blocks.push_back(loc_to_block_key(x, y, z));
-                }
+                float y2 = y*y;
+                for (float z = lim_min.z - _block_size; z <= lim_max.z + 2 * _block_size; z += _block_size)
+                    if (x2 + y2 + z*z < range2)
+                        blocks.push_back(loc_to_block_key(x, y, z));
             }
         }
 
+        return blocks;
+    }
+
+    OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
+    OCTOMAP_CLASS::get_mapped_blocks_in_bbox(
+        const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max) const
+    {
+        std::vector<BlockHashKey> blocks;
+        for (auto iter = _blocks.cbegin(); iter != _blocks.cend(); iter++)
+        {
+            pcl::PointXYZ center = block_key_to_center(iter->first);
+            if (center.x > lim_min.x && center.x < lim_max.x &&
+                center.y > lim_min.y && center.y < lim_max.y &&
+                center.z > lim_min.z && center.z < lim_max.z)
+                blocks.push_back(iter->first);
+        }
+        return blocks;
+    }
+
+    OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
+    OCTOMAP_CLASS::get_mapped_blocks_in_bbox(
+        const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, const pcl::PointXYZ &origin) const
+    {
+        if (_max_range < 0)
+            return get_mapped_blocks_in_bbox(lim_min, lim_max);
+
+        std::vector<BlockHashKey> blocks;
+        auto origin_v = origin.getArray4fMap();
+        float range2 = _max_range * _max_range;
+        for (auto iter = _blocks.cbegin(); iter != _blocks.cend(); iter++)
+        {
+            pcl::PointXYZ center = block_key_to_center(iter->first);
+            if (center.x > lim_min.x && center.x < lim_max.x &&
+                center.y > lim_min.y && center.y < lim_max.y &&
+                center.z > lim_min.z && center.z < lim_max.z &&
+                (center.getArray4fMap() - origin_v).square().sum() < range2)
+                blocks.push_back(iter->first);
+        }
         return blocks;
     }
 

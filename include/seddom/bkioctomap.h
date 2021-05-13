@@ -213,7 +213,10 @@ namespace seddom
         void inference_points(const PointCloudXYZL::Ptr training_data);
 
         /// Get all block indices inside a bounding box.
-        std::vector<BlockHashKey> get_blocks_in_bbox(const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, bool limit_range) const;
+        std::vector<BlockHashKey> get_blocks_in_bbox(const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max) const;
+        std::vector<BlockHashKey> get_blocks_in_bbox(const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, const pcl::PointXYZ &origin) const;
+        std::vector<BlockHashKey> get_mapped_blocks_in_bbox(const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max) const;
+        std::vector<BlockHashKey> get_mapped_blocks_in_bbox(const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, const pcl::PointXYZ &origin) const;
 
         /// Downsample point cloud using PCL VoxelGrid Filtering.
         template <typename PointT>
