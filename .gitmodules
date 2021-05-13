@@ -1,0 +1,6 @@
+[submodule "thirdparty/phmap"]
+	path = thirdparty/phmap
+	url = https://github.com/greg7mdp/parallel-hashmap.git
+[submodule "thirdparty/EigenRand"]
+	path = thirdparty/EigenRand
+	url = https://github.com/bab2min/EigenRand
