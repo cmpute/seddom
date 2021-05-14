@@ -139,7 +139,7 @@ namespace seddom
             assert(false);
 
         PROFILE_SPLIT("Dot product");
-        return Ks.rowwise().sum();
+        return Ks.rowwise().sum(); // TODO: clamp max out to prevent new occupancy not being updated?
     }
 }
 

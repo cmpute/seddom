@@ -11,14 +11,12 @@ message(STATUS "Build config: ${CMAKE_BUILD_TYPE}")
 
 find_package(OpenCV REQUIRED)
 find_package(msgpack REQUIRED)
-# find_package(Eigen3 3.3.7 REQUIRED)
 # find_package(PCL REQUIRED COMPONENTS common filters)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/phmap)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/EigenRand)
 
 # add optimization flags
-# if(CMAKE_BUILD_TYPE MATCHES Release OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-if (FALSE) # TODO: this should be imported from PCL_DEFINITIONS
+if (FALSE) # currently disabled due to lack of optimization
     message(STATUS "Build with vectorization")
     include(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
@@ -33,6 +31,8 @@ if (FALSE) # TODO: this should be imported from PCL_DEFINITIONS
     if(COMPILER_SUPPORTS_INTEL_XHOST)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -xHost")
     endif()
+    add_definitions(-DPCL_ENABLE_SSE)
+    add_definitions(-DPCL_NO_PRECOMPILE)
 endif()
 
 # enable OpenMP

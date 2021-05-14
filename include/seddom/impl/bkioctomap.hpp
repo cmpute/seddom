@@ -78,7 +78,8 @@ namespace seddom
           _chunk_size((float)pow(2, BlockDepth + chunk_depth - 2) * resolution),
           _sf2(sf2), _ell(ell),
           _max_range(max_range),
-          _min_range(0.5)
+          _min_range(0.5),
+          _max_beams(500)
     {
         SemanticOctreeNode<NumClass>::prior = prior;
         assert(chunk_depth > 0 && chunk_depth <= 20 && "Chunk depth should not be greater than 20!");
@@ -306,7 +307,7 @@ namespace seddom
             const auto v_p = ptarray.col(i);
             float phi, theta, r;
             catesian_to_spherical(v_p[0], v_p[1], v_p[2], phi, theta, r);
-            if (r < _min_range) // don't skip max range since it will affect free beam calculation
+            if (r < _min_range) // don't skip beam beyond max_range since it will affect free beam calculation
                 continue;
 
             spoint_t sp = {phi, theta, r};
@@ -359,7 +360,7 @@ namespace seddom
 
                 PROFILE_THREAD_BLOCK("Train free beam");
                 std::vector<size_t> indices;
-                for (; rit != beam_tree.qend() ;++rit)
+                for (size_t j = 0; rit != beam_tree.qend() && j < _max_beams ;++rit, ++j)
                     indices.push_back(rit->second);
                 Eigen::Matrix<float, -1, 4> block_x(indices.size(), 4);
                 for (size_t j = 0; j < block_x.rows(); j++)
@@ -383,6 +384,8 @@ namespace seddom
                 }
                 else
                     assert(false);
+
+                // TODO: remove block with all free space
             }
         }
 

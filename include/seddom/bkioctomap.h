@@ -167,6 +167,7 @@ namespace seddom
         template <KernelType KType>
         void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution,
                                float free_resolution);
+        // TODO: support non-labelled point cloud input, support label+score input and support label+score array input
 
         /*
          * @brief Insert PCL PointCloud into BGKOctoMaps.
@@ -238,6 +239,7 @@ namespace seddom
         float _chunk_size;
         float _max_range;
         float _min_range; // filter out points that are too close
+        size_t _max_beams;
 
         float _sf2;
         float _ell; // length-scale
