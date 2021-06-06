@@ -14,11 +14,13 @@ find_package(msgpack REQUIRED)
 # find_package(PCL REQUIRED COMPONENTS common filters)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/phmap)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/EigenRand)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/morton/include)
 
 # add optimization flags
-if (FALSE) # currently disabled due to lack of optimization
+option(WITH_VECTORIZATION "Build with vectorization" OFF) # currently disabled due to lack of optimization
+include(CheckCXXCompilerFlag)
+if (WITH_VECTORIZATION) 
     message(STATUS "Build with vectorization")
-    include(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
@@ -33,7 +35,20 @@ if (FALSE) # currently disabled due to lack of optimization
     endif()
     add_definitions(-DPCL_ENABLE_SSE)
     add_definitions(-DPCL_NO_PRECOMPILE)
-endif()
+else(WITH_VECTORIZATION)
+    # check BMI2 or AVX2 instructions for Morton code
+    CHECK_CXX_COMPILER_FLAG("-mavx2" COMPILER_SUPPORTS_MAVX2)
+    CHECK_CXX_COMPILER_FLAG("-mbmi2" COMPILER_SUPPORTS_MBMI2)
+    if(COMPILER_SUPPORTS_MBMI2)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2")
+        add_definitions(-D__BMI2__)
+    elseif(COMPILER_SUPPORTS_MAVX2)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
+        add_definitions(-D__AVX2__)
+    else()
+        message(FATAL_ERROR "AVX2 or BMI2 instruction support are mandatory!")
+    endif()
+endif(WITH_VECTORIZATION)
 
 # enable OpenMP
 option(WITH_OPENMP "Build with openmp support!" ON)

@@ -4,3 +4,6 @@
 [submodule "thirdparty/EigenRand"]
 	path = thirdparty/EigenRand
 	url = https://github.com/bab2min/EigenRand
+[submodule "thirdparty/morton"]
+	path = thirdparty/morton
+	url = https://github.com/kevinhartman/morton-nd.git

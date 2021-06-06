@@ -45,8 +45,8 @@ namespace seddom
     public:
         /// Hask key to index Block given block's center.
         static constexpr size_t NumClass = SemanticClass::NumClass;
-        typedef int64_t BlockHashKey;
-        typedef int64_t ChunkHashKey;
+        typedef uint64_t BlockHashKey;
+        typedef uint64_t ChunkHashKey;
         typedef Block<NumClass, BlockDepth> BlockType;
         typedef SemanticOctreeNode<NumClass> NodeType;
         typedef ParallelMap<BlockHashKey, BlockType> BlockMap;
