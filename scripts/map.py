@@ -24,14 +24,20 @@ class SBKIOctoMapNode:
         return str(self.data)
 
 class SBKIOctoMapBlock:
-    def __init__(self):
+    def __init__(self, block_depth):
         self.nodes = []
+        self.block_depth = block_depth
 
     def __hash__(self) -> int:
         return hash(tuple(hash(n) for n in self.nodes))
 
     def thash(self, tol=1e-9) -> int:
         return hash(tuple(n.thash(tol) for n in self.nodes))
+
+    @property
+    def leafs(self):
+        pos = (8 ** (self.block_depth - 1) - 1) // 7
+        return self.nodes[pos:]
 
     def __str__(self) -> str:
         return '[' + '\n'.join([(str(n) if n.is_classified() else '<>') for n in self.nodes]) + ']'
@@ -51,7 +57,7 @@ class SBKIOctoMap:
         m.resolution, m.block_depth, m.num_class, blocks = data
 
         for k, nodes in blocks.items():
-            octo_block = SBKIOctoMapBlock()
+            octo_block = SBKIOctoMapBlock(m.block_depth)
             for n in nodes:
                 octo_node = SBKIOctoMapNode()
                 assert n.code == SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE
@@ -129,5 +135,10 @@ if __name__ == "__main__":
     # import fire
     # fire.Fire(dict(hash=map_hash))
     m = SBKIOctoMap.load("map_dump.bin")
-    mref = SBKIOctoMap.load("/home/jacobz/Coding/ws/src/map_dump_ref.bin")
-    compare_maps(m, mref, 1e-4)
+    l_car = 1
+    def collect_label(leafs, l):
+        return np.sum(np.argmax(np.array([l.data for l in leafs]), axis=1) == l)
+    car_nodes = [collect_label(b.leafs, l_car) for k, b in m.blocks.items()]
+    print("Car nodes:", sum(car_nodes))
+    # mref = SBKIOctoMap.load("/home/jacobz/Coding/ws/src/map_dump_ref.bin")
+    # compare_maps(m, mref, 1e-4)

@@ -131,7 +131,9 @@ namespace seddom
             typename BGKL_CLASS::MatrixKType r(_x.rows(), xs.rows());
             d = dist_pl<T, Dim>(_x, xs, r).transpose();
             auto cov = covSparse<T, Dim>(d / _ell, _sf2);
-            Ks = cov.array() * (1 - r.cwiseMin(1).transpose().array());
+            auto rarray = r.transpose().array();
+            // Ks = cov.array() * (rarray < 1).select(rarray, 0); // linear weighted
+            Ks = cov.array() * (rarray < 0.5).select(rarray, 1 - rarray.cwiseMin(1)); // symmetric linear weighted
         }
         // else if (KType == KernelType::Materniso3)
         //     Ks = covMaterniso3<T, Dim>(d * SQ3 / _ell, _sf2);

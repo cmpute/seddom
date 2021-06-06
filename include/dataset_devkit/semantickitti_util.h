@@ -132,7 +132,7 @@ public:
             if (visualize)
                 publish_map();
         }
-        map_->dump_map("/home/jacobz/Coding/ws/src/BKISemanticMapping/map_dump.bin");
+        map_->dump_map("/home/jacobz/Coding/ws/src/seddom/map_dump.bin"); // TODO: move this to a ROS service
         return 1;
     }
 

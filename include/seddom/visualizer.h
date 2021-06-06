@@ -91,7 +91,7 @@ namespace seddom
             // fill blocks
             for (auto it = map.cbegin_leaf(); it != map.cend_leaf(); ++it)
             {
-                if (it->get_state() == seddom::State::OCCUPIED)
+                if (it->get_state() == seddom::State::OCCUPIED || it->get_state() == seddom::State::PREDICTED)
                 {
                     pcl::PointXYZ p = it.get_loc();
                     switch (Mode)
