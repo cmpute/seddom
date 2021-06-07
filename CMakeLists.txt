@@ -11,6 +11,7 @@ message(STATUS "Build config: ${CMAKE_BUILD_TYPE}")
 
 find_package(OpenCV REQUIRED)
 find_package(msgpack REQUIRED)
+find_package(SQLite3 REQUIRED)
 # find_package(PCL REQUIRED COMPONENTS common filters)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/phmap)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/EigenRand)
@@ -49,6 +50,17 @@ else(WITH_VECTORIZATION)
         message(FATAL_ERROR "AVX2 or BMI2 instruction support are mandatory!")
     endif()
 endif(WITH_VECTORIZATION)
+
+option(WITH_FASTMATH "Build with fast math optimization" ON)
+if(WITH_FASTMATH)
+    CHECK_CXX_COMPILER_FLAG("-ffast-math" COMPILER_SUPPORTS_FASTMATH)
+    if(COMPILER_SUPPORTS_FASTMATH)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
+    endif()
+    add_definitions(-DEIGEN_FAST_MATH=1)
+else()
+    add_definitions(-DEIGEN_FAST_MATH=0)
+endif()
 
 # enable OpenMP
 option(WITH_OPENMP "Build with openmp support!" ON)
@@ -183,6 +195,7 @@ include_directories(
     include/dataset_devkit
     ${catkin_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
+    ${SQLite3_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -241,11 +254,13 @@ add_executable(octomap_server
 target_link_libraries(semantickitti_node
     ${catkin_LIBRARIES}
     ${OpenCV_LIBRARIES}
+    ${SQLite3_LIBRARIES}
     easy_profiler
 )
 
 target_link_libraries(octomap_server
     ${catkin_LIBRARIES}
+    ${SQLite3_LIBRARIES}
     easy_profiler
 )
 

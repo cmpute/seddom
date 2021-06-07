@@ -13,6 +13,7 @@
 #include <pcl/io/pcd_io.h>
 
 #include "visualizer.h"
+#include "storage.h"
 
 class SemanticKITTIData
 {
@@ -34,6 +35,8 @@ public:
         map_ = new seddom::SemanticBKIOctoMap<seddom::SemanticKITTI, 3>(
             resolution, chunk_depth, sf2, ell, prior, max_range);
         m_pub_ = new seddom::OctomapVisualizer(nh_, map_topic);
+        storage_ = new seddom::OctomapStorage("test.db3");
+        std::cout << "params compatible: " << storage_->check_params(*map_) << std::endl;
         init_trans_to_ground_ << 1,  0, 0, 0,
                                  0,  0, 1, 0,
                                  0, -1, 0, 1,
@@ -201,6 +204,7 @@ private:
     int samples_per_beam_;
     seddom::SemanticBKIOctoMap<seddom::SemanticKITTI, 3> *map_;
     seddom::OctomapVisualizer *m_pub_;
+    seddom::OctomapStorage *storage_;
     ros::Publisher color_octomap_publisher_;
     tf::TransformListener listener_;
     std::ofstream pose_file_;

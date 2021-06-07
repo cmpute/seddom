@@ -29,6 +29,9 @@ namespace seddom
                                                       std::allocator<T>,
                                                       4, std::mutex>;
 
+    typedef uint64_t BlockHashKey;
+    typedef uint64_t ChunkHashKey;
+
     /*
      * @brief BGKOctoMap
      *
@@ -45,14 +48,14 @@ namespace seddom
     public:
         /// Hask key to index Block given block's center.
         static constexpr size_t NumClass = SemanticClass::NumClass;
-        typedef uint64_t BlockHashKey;
-        typedef uint64_t ChunkHashKey;
         typedef Block<NumClass, BlockDepth> BlockType;
         typedef SemanticOctreeNode<NumClass> NodeType;
         typedef ParallelMap<BlockHashKey, BlockType> BlockMap;
         typedef ParallelSet<ChunkHashKey> BlockSet;
         typedef ParallelSet<ChunkHashKey> ChunkSet; // Chunk is used for map dumping and efficient range iterating
         static_assert(BlockDepth > 0);
+
+        friend class OctomapStorage;
 
 /// Extended Block. TODO: this is related to ell and block size, we could make this automatically determined
 #ifdef EXPAND_PREDICTION
@@ -97,6 +100,8 @@ namespace seddom
         inline float chunk_depth() const { return _chunk_depth; }
         inline float chunk_size() const { return _chunk_size; }
         inline size_t chunk_count() const { return _chunks.size(); }
+        inline pcl::PointXYZ get_map_origin() const { return _map_origin; }
+        inline void set_map_origin(const pcl::PointXYZ& origin) const { _map_origin = origin; }
 
         /// LeafIterator for iterating all leaf nodes in blocks
         template <bool Constant>
@@ -246,7 +251,9 @@ namespace seddom
 
         BlockMap _blocks;
         ChunkSet _chunks;
+
         Eigen::Rand::Vmt19937_64 _rng;
+        pcl::PointXYZ _map_origin;
 
         // TODO: add boost::signal for integration start and complete
         //       completion signal could be used for visualization update, map dump and load, 2D map generation

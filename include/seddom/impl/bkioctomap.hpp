@@ -12,7 +12,6 @@
 #include <pcl/filters/voxel_grid.h>
 #include <boost/geometry.hpp>
 #include <boost/range/algorithm/nth_element.hpp>
-#include <morton-nd/mortonND_BMI2.h>
 
 #include "bkioctomap.h"
 #include "bki.h"
@@ -22,9 +21,6 @@
 
 namespace seddom
 {
-    // This could be a fallback
-    // constexpr auto MortonLUTEncoder = mortonnd::MortonNDLutEncoder_3D_64();
-
     inline void catesian_to_spherical(float x, float y, float z, float &phi, float &theta, float &r)
     {
         phi = atan2(y, x);
@@ -559,7 +555,7 @@ namespace seddom
         return frees;
     }
 
-    OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
+    OCTOMAP_TDECL std::vector<BlockHashKey>
     OCTOMAP_CLASS::get_blocks_in_bbox(
         const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max) const
     {
@@ -572,7 +568,7 @@ namespace seddom
         return blocks;
     }
 
-    OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
+    OCTOMAP_TDECL std::vector<BlockHashKey>
     OCTOMAP_CLASS::get_blocks_in_bbox(
         const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, const pcl::PointXYZ &origin) const
     {
@@ -596,7 +592,7 @@ namespace seddom
         return blocks;
     }
 
-    OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
+    OCTOMAP_TDECL std::vector<BlockHashKey>
     OCTOMAP_CLASS::get_mapped_blocks_in_bbox(
         const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max) const
     {
@@ -612,7 +608,7 @@ namespace seddom
         return blocks;
     }
 
-    OCTOMAP_TDECL std::vector<typename OCTOMAP_CLASS::BlockHashKey>
+    OCTOMAP_TDECL std::vector<BlockHashKey>
     OCTOMAP_CLASS::get_mapped_blocks_in_bbox(
         const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max, const pcl::PointXYZ &origin) const
     {
@@ -680,32 +676,28 @@ namespace seddom
         output.close();
     }
 
-    OCTOMAP_TDECL inline typename OCTOMAP_CLASS::BlockHashKey
+    OCTOMAP_TDECL inline BlockHashKey
     OCTOMAP_CLASS::loc_to_block_key(float x, float y, float z, float block_size) const
     {
-        constexpr int64_t offset = 1 << (mortonnd::MortonNDBmi_3D_64::FieldBits - 1);
-        auto div = 1 / block_size;
-        uint64_t ix = static_cast<uint64_t>(x * div + offset + 0.5);
-        uint64_t iy = static_cast<uint64_t>(y * div + offset + 0.5);
-        uint64_t iz = static_cast<uint64_t>(z * div + offset + 0.5);
-        return mortonnd::MortonNDBmi_3D_64::Encode(ix, iy, iz);
+        return (uint64_t(x / (double)block_size + 524288.5) << 40) |
+               (uint64_t(y / (double)block_size + 524288.5) << 20) |
+               (uint64_t(z / (double)block_size + 524288.5));
     }
 
-    OCTOMAP_TDECL inline typename OCTOMAP_CLASS::ChunkHashKey
+    OCTOMAP_TDECL inline ChunkHashKey
     OCTOMAP_CLASS::block_to_chunk_key(BlockHashKey key) const
     {
-        return key >> 3 * (_chunk_depth - 1);
+        return ((key >> (40 + _chunk_depth - 1))) |
+               (((key >> 20) & 0xFFFFF) >> (_chunk_depth - 1)) |
+               ((key & 0xFFFFF) >> (_chunk_depth - 1));
     }
 
     OCTOMAP_TDECL inline pcl::PointXYZ
     OCTOMAP_CLASS::block_key_to_center(BlockHashKey key) const
     {
-        constexpr int64_t offset = 1 << (mortonnd::MortonNDBmi_3D_64::FieldBits - 1);
-        uint64_t ix, iy, iz;
-        std::tie(ix, iy, iz) = mortonnd::MortonNDBmi_3D_64::Decode(key);
-        return pcl::PointXYZ((static_cast<int64_t>(ix) - offset) * _block_size,
-                             (static_cast<int64_t>(iy) - offset) * _block_size,
-                             (static_cast<int64_t>(iz) - offset) * _block_size);
+        return pcl::PointXYZ((int64_t(key >> 40) - 524288) * _block_size,
+                             (int64_t((key >> 20) & 0xFFFFF) - 524288) * _block_size,
+                             (int64_t(key & 0xFFFFF) - 524288) * _block_size);
     }
 
     OCTOMAP_TDECL typename OCTOMAP_CLASS::ExtendedBlock
