@@ -35,7 +35,7 @@ public:
         map_ = new seddom::SemanticBKIOctoMap<seddom::SemanticKITTI, 3>(
             resolution, chunk_depth, sf2, ell, prior, max_range);
         m_pub_ = new seddom::OctomapVisualizer(nh_, map_topic);
-        storage_ = new seddom::OctomapStorage("test.db3");
+        storage_ = new seddom::OctomapStorage("test.db3", 100);
         std::cout << "params compatible: " << storage_->check_params(*map_) << std::endl;
         init_trans_to_ground_ << 1,  0, 0, 0,
                                  0,  0, 1, 0,
@@ -132,9 +132,11 @@ public:
                     query_scan(input_data_dir, query_id);
             }
 
+            storage_->sync(*map_);
             if (visualize)
                 publish_map();
         }
+        storage_->close();
         map_->dump_map("/home/jacobz/Coding/ws/src/seddom/map_dump.bin"); // TODO: move this to a ROS service
         return 1;
     }

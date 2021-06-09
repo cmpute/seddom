@@ -78,7 +78,9 @@ namespace seddom
           _sf2(sf2), _ell(ell),
           _max_range(max_range),
           _min_range(0.5),
-          _max_beams(500)
+          _max_beams(500),
+          _map_origin(0, 0, 0),
+          _latest_time()
     {
         SemanticOctreeNode<NumClass>::prior = prior;
         assert(chunk_depth > 0 && chunk_depth <= 20 && "Chunk depth should not be greater than 20!");
@@ -111,6 +113,8 @@ namespace seddom
 
         PROFILE_SPLIT("Inference");
         inference_points<KType>(xy);
+
+        _latest_position = origin;
     }
 
     OCTOMAP_TDECL template <KernelType KType>
@@ -130,6 +134,8 @@ namespace seddom
 
         PROFILE_SPLIT("Inference");
         inference_points<KType>(xy);
+
+        _latest_position = origin;
     }
 
     OCTOMAP_TDECL template <KernelType KType>
@@ -207,8 +213,8 @@ namespace seddom
             auto block_iter = _blocks.find(key);
             if (block_iter == _blocks.end())
             {
-                block_iter = _blocks.emplace_hint(block_iter, key,
-                    Block<NumClass, BlockDepth>(block_key_to_center(key), _resolution));
+                block_iter = _blocks.emplace(key,
+                    Block<NumClass, BlockDepth>(block_key_to_center(key), _resolution)).first;
                 if (_chunk_depth > 1)
                 {
                     ChunkHashKey ckey = block_to_chunk_key(key);
@@ -389,6 +395,7 @@ namespace seddom
         }
 
         DEBUG_WRITE("Free prediction done");
+        _latest_position = origin;
     }
 
     OCTOMAP_TDECL PointCloudXYZL::Ptr
@@ -679,17 +686,18 @@ namespace seddom
     OCTOMAP_TDECL inline BlockHashKey
     OCTOMAP_CLASS::loc_to_block_key(float x, float y, float z, float block_size) const
     {
-        return (uint64_t(x / (double)block_size + 524288.5) << 40) |
-               (uint64_t(y / (double)block_size + 524288.5) << 20) |
-               (uint64_t(z / (double)block_size + 524288.5));
+        return (uint64_t(x / block_size + 524288.5) << 40) |
+               (uint64_t(y / block_size + 524288.5) << 20) |
+               (uint64_t(z / block_size + 524288.5));
     }
 
     OCTOMAP_TDECL inline ChunkHashKey
     OCTOMAP_CLASS::block_to_chunk_key(BlockHashKey key) const
     {
-        return ((key >> (40 + _chunk_depth - 1))) |
-               (((key >> 20) & 0xFFFFF) >> (_chunk_depth - 1)) |
-               ((key & 0xFFFFF) >> (_chunk_depth - 1));
+        const auto chunk_bits = _chunk_depth - 1;
+        return (((key >> (40 + chunk_bits))) << 40) |
+               (((key >> 20) & 0xFFFFF) >> chunk_bits << 20) |
+               ((key & 0xFFFFF) >> chunk_bits);
     }
 
     OCTOMAP_TDECL inline pcl::PointXYZ
@@ -698,6 +706,15 @@ namespace seddom
         return pcl::PointXYZ((int64_t(key >> 40) - 524288) * _block_size,
                              (int64_t((key >> 20) & 0xFFFFF) - 524288) * _block_size,
                              (int64_t(key & 0xFFFFF) - 524288) * _block_size);
+    }
+
+    OCTOMAP_TDECL inline pcl::PointXYZ
+    OCTOMAP_CLASS::chunk_key_to_center(ChunkHashKey key) const
+    {
+        const auto chunk_offset = 524288 >> (_chunk_depth - 1);
+        return pcl::PointXYZ((int64_t(key >> 40) - chunk_offset) * _chunk_size,
+                             (int64_t((key >> 20) & 0xFFFFF) - chunk_offset) * _chunk_size,
+                             (int64_t(key & 0xFFFFF) - chunk_offset) * _chunk_size);
     }
 
     OCTOMAP_TDECL typename OCTOMAP_CLASS::ExtendedBlock

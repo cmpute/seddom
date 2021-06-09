@@ -78,6 +78,7 @@ namespace seddom
 
         template <typename Packer>
         void msgpack_pack(Packer &pk) const;
+        void msgpack_unpack(msgpack::object const& o);
 
     private:
         ClassVector ms;

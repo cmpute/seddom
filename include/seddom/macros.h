@@ -51,4 +51,5 @@ const int8_t SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE = 10;
 #else
 #define DEBUG_WRITE(s)
 #endif
-#define INFO_WRITE(s) std::cout << s << std::endl;
+#define INFO_WRITE(s) std::cout << "INFO: " << s << std::endl;
+#define WARN_WRITE(s) std::cout << "WARN: " << s << std::endl;

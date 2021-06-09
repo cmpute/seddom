@@ -82,8 +82,8 @@ namespace seddom
          * @param sf2 signal variance in GPs (default 1.0)
          * @param ell length-scale in GPs (default 1.0)
          * @param prior prior value for categories
-         * @param max_range max sensor range. This is responsible for cropping training data and map saving
-         *                  max_range <= 0 means no limit, range for map saving will comes from running statisitcs
+         * @param max_range max sensor range. This is responsible for cropping training data
+         *                  max_range <= 0 means no limit
          */
         SemanticBKIOctoMap(
             float resolution,
@@ -101,7 +101,7 @@ namespace seddom
         inline float chunk_size() const { return _chunk_size; }
         inline size_t chunk_count() const { return _chunks.size(); }
         inline pcl::PointXYZ get_map_origin() const { return _map_origin; }
-        inline void set_map_origin(const pcl::PointXYZ& origin) const { _map_origin = origin; }
+        inline void set_map_origin(const pcl::PointXYZ& origin) { _map_origin = origin; }
 
         /// LeafIterator for iterating all leaf nodes in blocks
         template <bool Constant>
@@ -198,6 +198,7 @@ namespace seddom
 
         /// Convert from hash key to block.
         inline pcl::PointXYZ block_key_to_center(BlockHashKey key) const;
+        inline pcl::PointXYZ chunk_key_to_center(ChunkHashKey key) const;
 
         /// Convert from block to hash key.
         inline BlockHashKey loc_to_block_key(pcl::PointXYZ center) const { return loc_to_block_key(center.x, center.y, center.z); }
@@ -254,6 +255,10 @@ namespace seddom
 
         Eigen::Rand::Vmt19937_64 _rng;
         pcl::PointXYZ _map_origin;
+        pcl::PointXYZ _latest_position;
+        std::chrono::system_clock::time_point _latest_time = std::chrono::system_clock::now();
+        // TODO: update from new measurement or database, otherwise initialize as 0 (from utc start)
+        // TODO: also store latest time for each block
 
         // TODO: add boost::signal for integration start and complete
         //       completion signal could be used for visualization update, map dump and load, 2D map generation

@@ -111,6 +111,7 @@ namespace seddom
         inline size_t leaf_count() const { return ipow8(MaxDepth - 1); };
 
         template <typename Packer> void msgpack_pack(Packer &pk) const;
+        void msgpack_unpack(msgpack::object const& o);
 
         static inline DepthIndex index_to_depth_index(size_t index);
         static inline size_t depth_index_to_index(const DepthIndex& depth_index);

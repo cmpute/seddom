@@ -8,7 +8,7 @@ num_class: 20 # Number of classes
 random_samples_per_beam: 0
 free_resolution: -1 # Free space sampling resolution
 ds_resolution: 0.1 # Downsampling factor
-chunk_depth: 4
+chunk_depth: 6
 
 # Information about range-finder data
 scan_num: 50 # How many scans to use

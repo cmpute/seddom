@@ -12,7 +12,7 @@ namespace seddom
     class OctomapStorage
     {
     public:
-        OctomapStorage(const std::string &database);
+        OctomapStorage(const std::string &database, float active_range);
         ~OctomapStorage();
         void close();
 
@@ -27,12 +27,14 @@ namespace seddom
     protected:
         void exec_sql(const std::string &sql);
         bool exec_find_sql(const std::string &sql);
+        inline void assert_ok(int code);
 
         uint64_t key_to_morton(BlockHashKey key);
         BlockHashKey morton_to_key(uint64_t morton);
 
         sqlite3 *_db;
         bool _closed;
+        float _active_range;
         phmap::flat_hash_set<ChunkHashKey> _tracked_chunks;
     };
 }
