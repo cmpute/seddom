@@ -36,6 +36,9 @@ public:
             resolution, chunk_depth, sf2, ell, prior, max_range);
         m_pub_ = new seddom::OctomapVisualizer(nh_, map_topic);
         storage_ = new seddom::OctomapStorage("test.db3", 100);
+        storage_->load_around(*map_, pcl::PointXYZ(0,0,0));
+        publish_map();
+
         std::cout << "params compatible: " << storage_->check_params(*map_) << std::endl;
         init_trans_to_ground_ << 1,  0, 0, 0,
                                  0,  0, 1, 0,

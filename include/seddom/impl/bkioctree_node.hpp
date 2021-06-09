@@ -11,6 +11,9 @@ namespace seddom
     float Semantics<NumClass>::prior = 1.f;
 
     template <size_t NumClass>
+    SaveFormat save_format = SaveFormat::LABEL_WITH_DUAL_VAR;
+
+    template <size_t NumClass>
     typename Semantics<NumClass>::ClassVector
     Semantics<NumClass>::get_probs() const
     {
@@ -27,10 +30,10 @@ namespace seddom
     }
 
     template <size_t NumClass>
-    void Semantics<NumClass>::update(const ClassVector &ybars, bool hit)
+    bool Semantics<NumClass>::update(const ClassVector &ybars, bool hit)
     {
         if (ybars.sum() < 1e-5)
-            return; // skip if the inferenced value is too small
+            return false; // skip if the inferenced value is too small
 
         ms += ybars;
 
@@ -40,6 +43,7 @@ namespace seddom
             _state = State::OCCUPIED; // hit or previously hit
         else
             _state = State::PREDICTED;
+        return true;
     }
 
     template <size_t NumClass>
