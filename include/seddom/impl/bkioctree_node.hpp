@@ -8,10 +8,10 @@
 namespace seddom
 {
     template <size_t NumClass>
-    float Semantics<NumClass>::prior = 1.f;
+    float Semantics<NumClass>::prior = .1f;
 
     template <size_t NumClass>
-    SaveFormat save_format = SaveFormat::LABEL_WITH_DUAL_VAR;
+    SaveFormat Semantics<NumClass>::save_format = SaveFormat::LABEL_WITH_DUAL_VAR;
 
     template <size_t NumClass>
     typename Semantics<NumClass>::ClassVector
@@ -69,39 +69,152 @@ namespace seddom
     template <typename Packer>
     void Semantics<NumClass>::msgpack_pack(Packer &pk) const
     {
-        const size_t l = NumClass * sizeof(float);
-        pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE);
-
-        union { float f; uint32_t i; } mem;
-        char buf[l];
-        for (int i = 0; i < NumClass; i++) // TODO: pack state and skip unknown
+        if (_state == State::UNKNOWN)
         {
-            mem.f = ms(i) - prior;
-            _msgpack_store32(&buf[i * sizeof(float)], mem.i);
+            pk.pack_nil();
+            return;
         }
-        pk.pack_ext_body(buf, l);
+        union { float f; uint32_t i; } mem;
+        switch(save_format)
+        {
+            case SaveFormat::FULL:
+            {
+                const size_t l = NumClass * sizeof(float) + 1;
+                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::FULL);
+
+                char buf[l];
+                buf[0] = (char)_state;
+                char *ptr = buf + 1;
+                for (int i = 0; i < NumClass; i++)
+                {
+                    mem.f = ms(i) - prior;
+                    _msgpack_store32(ptr, mem.i);
+                    ptr += sizeof(float);
+                }
+                pk.pack_ext_body(buf, l);
+                break;
+            }
+            case SaveFormat::LABEL_WITH_DUAL_VAR:
+            {
+                if (_state == State::FREE)
+                    goto CASE_LABEL_WITH_VAR;
+                const size_t l = 3 * sizeof(float) + 2;
+                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_DUAL_VAR);
+
+                char buf[l];
+                buf[0] = (char)_state;
+                buf[1] = get_semantics();
+                mem.f = ms.sum() - prior * NumClass;
+                _msgpack_store32(buf+2, mem.i);
+                mem.f = ms[0] - prior;
+                _msgpack_store32(buf+2+sizeof(float), mem.i);
+                mem.f = ms[buf[1]] - prior;
+                _msgpack_store32(buf+2+2*sizeof(float), mem.i);
+                pk.pack_ext_body(buf, l);
+                break;
+            }
+            CASE_LABEL_WITH_VAR:
+            case SaveFormat::LABEL_WITH_VAR:
+            {
+                const size_t l = 2 * sizeof(float) + 2;
+                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_VAR);
+
+                char buf[l];
+                buf[0] = (char)_state;
+                buf[1] = get_semantics();
+                mem.f = ms.sum() - prior * NumClass;
+                _msgpack_store32(buf+2, mem.i);
+                mem.f = ms[buf[1]] - prior;
+                _msgpack_store32(buf+2+sizeof(float), mem.i);
+                pk.pack_ext_body(buf, l);
+                break;
+            }
+            case SaveFormat::LABEL:
+            {
+                const size_t l = 2;
+                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL);
+
+                char buf[l];
+                buf[0] = (char)_state;
+                buf[1] = get_semantics();
+                pk.pack_ext_body(buf, l);
+                break;
+            }
+        }
     }
 
     template <size_t NumClass>
     void Semantics<NumClass>::msgpack_unpack(msgpack::object const& o)
     {
+        if(o.type == msgpack::type::NIL)
+            return;
         assert(o.type == msgpack::type::EXT);
 
         union { float f; uint32_t i; } mem;
-
+        const char *ptr = o.via.ext.data();
         switch(o.via.ext.type())
         {
-            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE:
+            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::FULL:
+            {
+                _state = (State)*ptr++;
                 for (int i = 0; i < NumClass; i++)
                 {
-                    _msgpack_load32(uint32_t, o.via.ext.data() + i * sizeof(float), &mem.i);
+                    _msgpack_load32(uint32_t, ptr, &mem.i);
                     ms[i] += mem.f;
+                    ptr += sizeof(float);
                 }
-                if (get_semantics() == 0)
-                    _state = State::FREE;
-                else
-                    _state = State::OCCUPIED;
                 break;
+            }
+            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_DUAL_VAR:
+            {
+                _state = (State)*ptr++;
+                char semantics = *ptr++;
+
+                _msgpack_load32(uint32_t, ptr, &mem.i);
+                float sum = mem.f;
+                ptr += sizeof(float);
+
+                _msgpack_load32(uint32_t, ptr, &mem.i);
+                float prob_free = mem.f;
+                ptr += sizeof(float);
+
+                _msgpack_load32(uint32_t, ptr, &mem.i);
+                float prob_sem = mem.f;
+
+                ms[0] += prob_free;
+                ms[semantics] += prob_sem;
+                float prob_others = (sum - prob_free - prob_sem) / (NumClass - 2);
+                for (int i = 1; i < NumClass; i++)
+                    if (i != semantics)
+                        ms[i] += prob_others;
+                break;
+            }
+            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_VAR:
+            {
+                _state = (State)*ptr++;
+                char semantics = *ptr++;
+
+                _msgpack_load32(uint32_t, ptr, &mem.i);
+                float sum = mem.f;
+                ptr += sizeof(float);
+
+                _msgpack_load32(uint32_t, ptr, &mem.i);
+                float prob_sem = mem.f;
+
+                ms[semantics] += prob_sem;
+                float prob_others = (sum - prob_sem) / (NumClass - 1);
+                for (int i = 0; i < NumClass; i++)
+                    if (i != semantics)
+                        ms[i] += prob_others;
+                break;
+            }
+            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL:
+            {
+                _state = (State)*ptr++;
+                char semantics = *ptr++;
+                ms[semantics] += prior * 10;
+                break;
+            }
             default:
                 throw msgpack::type_error();
         }

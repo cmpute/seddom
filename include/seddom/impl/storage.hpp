@@ -220,10 +220,14 @@ namespace seddom
             assert_ok(sqlite3_bind_int64(stmt, 1, key_to_morton(kit.first)));
             assert_ok(sqlite3_bind_int64(stmt, 2, timestamp));
             auto data = stream_out.str(); // TODO: possible data copy
-            assert_ok(sqlite3_bind_blob(stmt, 3, data.c_str(), data.size(), NULL));
 
-            if ((ec = sqlite3_step(stmt)) != SQLITE_DONE)
-                throw sqlite_exception(ec, sql_insert_block);
+            if (data.size() > (block_iter->second.node_count()+3)) // skip if all nodes are unknown
+            {
+                assert_ok(sqlite3_bind_blob(stmt, 3, data.c_str(), data.size(), NULL));
+
+                if ((ec = sqlite3_step(stmt)) != SQLITE_DONE)
+                    throw sqlite_exception(ec, sql_insert_block);
+            }
             assert_ok(sqlite3_reset(stmt));
             map._blocks.erase(block_iter);
         }

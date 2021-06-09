@@ -24,6 +24,7 @@ namespace seddom
         using typename SemanticOctree<NumClass, MaxDepth>::DepthIndex;
         using SemanticOctree<NumClass, MaxDepth>::cell_count;
         using SemanticOctree<NumClass, MaxDepth>::leaf_count;
+        using SemanticOctree<NumClass, MaxDepth>::node_count;
         using SemanticOctree<NumClass, MaxDepth>::leaf_at;
         using SemanticOctree<NumClass, MaxDepth>::begin_leaf;
         using SemanticOctree<NumClass, MaxDepth>::cbegin_leaf;
