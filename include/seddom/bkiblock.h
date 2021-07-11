@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 
 #include "bkioctree_node.h"
 #include "bkioctree.h"
@@ -86,6 +87,7 @@ namespace seddom
 
         float _resolution;
         pcl::PointXYZ _center;
+        std::chrono::system_clock::time_point _latest_time;
     };
 }
 

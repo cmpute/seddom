@@ -89,6 +89,7 @@ if (WITH_PROFILER)
     else ()
         message(STATUS "Profiler not found")
     endif ()
+    add_definitions(-DPROFILING)
 endif ()
 
 option(EXPAND_PREDICTION "Use 27 neighbor blocks instead of 7 during prediction" OFF)

@@ -32,10 +32,12 @@ namespace seddom
         template <typename SemanticClass, size_t BlockDepth>
         void dump_all(SemanticBKIOctoMap<SemanticClass, BlockDepth> &map);
 
+        int get_size() const;
+
     protected:
         void exec_sql(const std::string &sql);
         bool exec_find_sql(const std::string &sql);
-        inline void assert_ok(int code);
+        inline void assert_ok(int code) const;
 
         template <typename SemanticClass, size_t BlockDepth>
         void load_chunk(SemanticBKIOctoMap<SemanticClass, BlockDepth> &map, ChunkHashKey key, const std::string &table_name);

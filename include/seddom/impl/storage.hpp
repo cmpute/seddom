@@ -57,7 +57,7 @@ namespace seddom
         }
     }
 
-    inline void OctomapStorage::assert_ok(int code)
+    inline void OctomapStorage::assert_ok(int code) const
     {
         if (code != SQLITE_OK)
             throw sqlite_exception(code, "");
@@ -160,7 +160,7 @@ namespace seddom
 
         size_t chunk_bits = 3 * (map._chunk_depth - 1);
         const uint64_t morton = key_to_morton(key);
-        INFO_WRITE("Loading chunk " << key << " (morton: " << morton << ")");
+        DEBUG_WRITE("Loading chunk " << key << " (morton: " << morton << ")");
         assert_ok(sqlite3_prepare_v2(_db, sql_query_chunk.c_str(), -1, &stmt, NULL));
         assert_ok(sqlite3_bind_int64(stmt, 1, morton << chunk_bits));
         assert_ok(sqlite3_bind_int64(stmt, 2, (morton + 1) << chunk_bits));
@@ -203,7 +203,7 @@ namespace seddom
         const std::string sql_insert_block = "REPLACE INTO '" + table_name +
                                              "' (hashkey, last_update, data) VALUES(?,?,?);";
 
-        INFO_WRITE("Dumping chunk " << key);
+        DEBUG_WRITE("Dumping chunk " << key);
         auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(map._latest_time.time_since_epoch()).count();
         assert_ok(sqlite3_prepare_v2(_db, sql_insert_block.c_str(), -1, &stmt, NULL));
 
@@ -219,7 +219,7 @@ namespace seddom
             msgpack::pack(stream_out, block_iter->second);
             assert_ok(sqlite3_bind_int64(stmt, 1, key_to_morton(kit.first)));
             assert_ok(sqlite3_bind_int64(stmt, 2, timestamp));
-            auto data = stream_out.str(); // TODO: possible data copy
+            auto data = stream_out.str();
 
             if (data.size() > (block_iter->second.node_count()+3)) // skip if all nodes are unknown
             {
@@ -294,12 +294,17 @@ namespace seddom
     template <typename SemanticClass, size_t BlockDepth>
     void OctomapStorage::sync(SemanticBKIOctoMap<SemanticClass, BlockDepth> &map)
     {
+        PROFILE_FUNCTION;
+
+        PROFILE_BLOCK("Check table existence");
         std::string table_name = check_table(map);
 
         // load chunks inside activate range
+        PROFILE_SPLIT("Load chunks");
         load_around(map, map._latest_position);
 
         // dump chunks outside active range
+        PROFILE_SPLIT("Dump chunks");
         auto center_array = map._latest_position.getVector4fMap();
         float threshold = _active_range + map.chunk_size();
         assert_ok(sqlite3_exec(_db, "BEGIN TRANSACTION;", NULL, NULL, NULL));
@@ -313,5 +318,28 @@ namespace seddom
                 dump_chunk(map, ckey, table_name);
         }
         assert_ok(sqlite3_exec(_db, "END TRANSACTION;", NULL, NULL, NULL));
+
+        #ifdef PROFILING
+        INFO_WRITE("Updated database, size: " << get_size());
+        #endif
+    }
+
+    int OctomapStorage::get_size() const
+    {
+        sqlite3_stmt *stmt; int ec;
+
+        // get page size
+        assert_ok(sqlite3_prepare_v2(_db, "PRAGMA page_size", -1, &stmt, NULL));
+        sqlite3_step(stmt);
+        int page_size = sqlite3_column_int(stmt, 0);
+        assert_ok(sqlite3_finalize(stmt));
+
+        // get page count
+        assert_ok(sqlite3_prepare_v2(_db, "PRAGMA page_count", -1, &stmt, NULL));
+        sqlite3_step(stmt);
+        int page_count = sqlite3_column_int(stmt, 0);
+        assert_ok(sqlite3_finalize(stmt));
+
+        return page_size * page_count;
     }
 }

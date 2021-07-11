@@ -25,14 +25,14 @@ namespace seddom
     {
         phi = atan2(y, x);
         phi = phi >= 0 ? phi : phi + DPI;
-        float rxy2 = x*x + y*y;
+        float rxy2 = x * x + y * y;
         theta = atan2(z, sqrt(rxy2));
-        r = sqrt(rxy2 + z*z);
+        r = sqrt(rxy2 + z * z);
     }
 
     // get a bound of a point cloud, while discarding n outlier points
     template <typename PointT>
-    void getMinMax3Dnth(const pcl::PointCloud<PointT>& cloud, pcl::PointXYZ& min_pt, pcl::PointXYZ& max_pt, size_t nth)
+    void getMinMax3Dnth(const pcl::PointCloud<PointT> &cloud, pcl::PointXYZ &min_pt, pcl::PointXYZ &max_pt, size_t nth)
     {
         std::vector<float> c(cloud.size());
         assert(nth < cloud.size() / 2);
@@ -44,14 +44,14 @@ namespace seddom
         min_pt.x = c[lower];
         boost::range::nth_element(c, c.begin() + upper);
         max_pt.x = c[upper];
-        
+
         for (size_t i = 0; i < cloud.size(); i++)
             c[i] = cloud.at(i).y;
         boost::range::nth_element(c, c.begin() + lower);
         min_pt.y = c[lower];
         boost::range::nth_element(c, c.begin() + upper);
         max_pt.y = c[upper];
-        
+
         for (size_t i = 0; i < cloud.size(); i++)
             c[i] = cloud.at(i).z;
         boost::range::nth_element(c, c.begin() + lower);
@@ -99,10 +99,12 @@ namespace seddom
     OCTOMAP_TDECL template <KernelType KType>
     void
     OCTOMAP_CLASS::insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                                     std::chrono::system_clock::time_point timestamp,
                                      float ds_resolution, float free_resolution)
     {
         PROFILE_FUNCTION;
-        DEBUG_WRITE("Insert pointcloud: " << "cloud size = " << cloud->size() << ", origin = " << origin);
+        DEBUG_WRITE("Insert pointcloud: "
+                    << "cloud size = " << cloud->size() << ", origin = " << origin);
 
         PROFILE_BLOCK("Get Training Data");
         PointCloudXYZL::Ptr xy = get_training_data(cloud, origin, ds_resolution, free_resolution);
@@ -115,15 +117,21 @@ namespace seddom
         inference_points<KType>(xy);
 
         _latest_position = origin;
+
+        #ifdef PROFILING
+        INFO_WRITE("Map updated, memory size: " << memory_size());
+        #endif
     }
 
     OCTOMAP_TDECL template <KernelType KType>
     void
     OCTOMAP_CLASS::insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                                     std::chrono::system_clock::time_point timestamp,
                                      float ds_resolution, int samples_per_beam)
     {
         PROFILE_FUNCTION;
-        DEBUG_WRITE("Insert pointcloud: " << "cloud size = " << cloud->size() << ", origin = " << origin);
+        DEBUG_WRITE("Insert pointcloud: "
+                    << "cloud size = " << cloud->size() << ", origin = " << origin);
 
         PROFILE_BLOCK("Get Training Data");
         PointCloudXYZL::Ptr xy = get_random_training_data(cloud, origin, ds_resolution, samples_per_beam);
@@ -136,6 +144,10 @@ namespace seddom
         inference_points<KType>(xy);
 
         _latest_position = origin;
+
+        #ifdef PROFILING
+        INFO_WRITE("Map updated, memory size: " << memory_size());
+        #endif
     }
 
     OCTOMAP_TDECL template <KernelType KType>
@@ -214,7 +226,8 @@ namespace seddom
             if (block_iter == _blocks.end())
             {
                 block_iter = _blocks.emplace(key,
-                    Block<NumClass, BlockDepth>(block_key_to_center(key), _resolution)).first;
+                                             Block<NumClass, BlockDepth>(block_key_to_center(key), _resolution))
+                                 .first;
                 if (_chunk_depth > 1)
                 {
                     ChunkHashKey ckey = block_to_chunk_key(key);
@@ -229,7 +242,7 @@ namespace seddom
 
             // currently the hit flag is only in block level, which might not be enough
             bool is_hit = train_blocks.find(key) != train_blocks.end();
-                                                                        
+
             if (KType == KernelType::CSM)
             {
                 PROFILE_THREAD_BLOCK("Query inference object");
@@ -264,8 +277,7 @@ namespace seddom
                     int j = 0;
                     for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
                     {
-                        // Only need to update if kernel density total kernel density est > 0
-                        //if (kbar[j] > 0.0)
+                        // TODO: remove block if block is just intialized (timestamp = 0) and all updates return false;
                         leaf_it->update(ybars.row(j), is_hit);
                     }
                 }
@@ -279,15 +291,18 @@ namespace seddom
 
     OCTOMAP_TDECL template <KernelType KType>
     void
-    OCTOMAP_CLASS::insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution)
+    OCTOMAP_CLASS::insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                                        std::chrono::system_clock::time_point timestamp,
+                                        float ds_resolution)
     {
         PROFILE_FUNCTION;
-        DEBUG_WRITE("Insert pointcloud: " << "cloud size = " << cloud->size() << ", origin = " << origin);
+        DEBUG_WRITE("Insert pointcloud: "
+                    << "cloud size = " << cloud->size() << ", origin = " << origin);
 
         PROFILE_BLOCK("Downsample hits");
         PointCloudXYZL::Ptr sampled_hits = downsample<pcl::PointXYZL>(cloud, ds_resolution);
 
-        PROFILE_SPLIT("Inference hits");        
+        PROFILE_SPLIT("Inference hits");
         if (sampled_hits->size() > 0)
             inference_points<KType>(sampled_hits);
 
@@ -297,7 +312,7 @@ namespace seddom
 
         typedef bg::cs::spherical_equatorial<bg::radian> scoord_t;
         typedef bg::model::point<float, 3, scoord_t> spoint_t; // point in spherical coordinate
-        typedef size_t srtree_data_t; // index of beam
+        typedef size_t srtree_data_t;                          // index of beam
         typedef std::pair<spoint_t, srtree_data_t> srtree_value_t;
         typedef bg::model::box<spoint_t> sbox_t;
         typedef bgi::rstar<16, 4> srtree_params_t;
@@ -346,8 +361,8 @@ namespace seddom
 
             float rs = search_range / r;
             float rs_phi = rs / cos(theta);
-            spoint_t p1 = { phi - rs_phi, std::max(theta - rs, -float(PI/2)), r };
-            spoint_t p2 = { phi + rs_phi, std::min(theta + rs,  float(PI/2)), std::numeric_limits<float>::max() };
+            spoint_t p1 = {phi - rs_phi, std::max(theta - rs, -float(PI / 2)), r};
+            spoint_t p2 = {phi + rs_phi, std::min(theta + rs, float(PI / 2)), std::numeric_limits<float>::max()};
             sbox_t bq(p1, p2);
 
             PROFILE_THREAD_SPLIT("Query rtree");
@@ -365,7 +380,7 @@ namespace seddom
 
                 PROFILE_THREAD_BLOCK("Train free beam");
                 std::vector<size_t> indices;
-                for (size_t j = 0; rit != beam_tree.qend() && j < _max_beams ;++rit, ++j)
+                for (size_t j = 0; rit != beam_tree.qend() && j < _max_beams; ++rit, ++j)
                     indices.push_back(rit->second);
                 Eigen::Matrix<float, -1, 4> block_x(indices.size(), 4);
                 for (size_t j = 0; j < block_x.rows(); j++)
@@ -390,12 +405,16 @@ namespace seddom
                 else
                     assert(false);
 
-                // TODO: remove block with all free space
+                // TODO: remove block with all free space?
             }
         }
 
         DEBUG_WRITE("Free prediction done");
         _latest_position = origin;
+
+        #ifdef PROFILING
+        INFO_WRITE("Map updated, memory size: " << memory_size());
+        #endif
     }
 
     OCTOMAP_TDECL PointCloudXYZL::Ptr
@@ -586,12 +605,12 @@ namespace seddom
         float range2 = _max_range * _max_range;
         for (float x = lim_min.x - _block_size; x <= lim_max.x + 2 * _block_size; x += _block_size)
         {
-            float x2 = x*x;
+            float x2 = x * x;
             for (float y = lim_min.y - _block_size; y <= lim_max.y + 2 * _block_size; y += _block_size)
             {
-                float y2 = y*y;
+                float y2 = y * y;
                 for (float z = lim_min.z - _block_size; z <= lim_max.z + 2 * _block_size; z += _block_size)
-                    if (x2 + y2 + z*z < range2)
+                    if (x2 + y2 + z * z < range2)
                         blocks.push_back(loc_to_block_key(x, y, z));
             }
         }
@@ -650,15 +669,13 @@ namespace seddom
     OCTOMAP_TDECL typename OCTOMAP_CLASS::leaf_iterator
     OCTOMAP_CLASS::search(float x, float y, float z)
     {
-        auto block_iter = const_cast<const OCTOMAP_CLASS::BlockMap&>(_blocks).find(loc_to_block_key(x, y, z));
+        auto block_iter = const_cast<const OCTOMAP_CLASS::BlockMap &>(_blocks).find(loc_to_block_key(x, y, z));
         if (block_iter == _blocks.cend())
             return end_leaf();
         else
             return leaf_iterator(this, block_iter, block_iter->second.search(x, y, z));
     }
 
-    // TODO: add option to save in compact format (discard distribution)
-    // TODO: compact format can be forced when SQLite backend is implemented
     OCTOMAP_TDECL void
     OCTOMAP_CLASS::dump_map(const std::string &path) const
     {

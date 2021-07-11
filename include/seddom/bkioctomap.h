@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <mutex>
+#include <chrono>
 
 #include <parallel_hashmap/phmap.h>
 #include <pcl/point_cloud.h>
@@ -100,8 +101,15 @@ namespace seddom
         inline float chunk_depth() const { return _chunk_depth; }
         inline float chunk_size() const { return _chunk_size; }
         inline size_t chunk_count() const { return _chunks.size(); }
+        inline size_t memory_size() const
+        {
+            size_t result = sizeof(*this);
+            result += _blocks.size() * (sizeof(BlockType) + sizeof(BlockHashKey));
+            result += _chunks.size() * (sizeof(ChunkHashKey));
+            return result;
+        }
         inline pcl::PointXYZ get_map_origin() const { return _map_origin; }
-        inline void set_map_origin(const pcl::PointXYZ& origin) { _map_origin = origin; }
+        inline void set_map_origin(const pcl::PointXYZ &origin) { _map_origin = origin; }
 
         /// LeafIterator for iterating all leaf nodes in blocks
         template <bool Constant>
@@ -170,8 +178,15 @@ namespace seddom
          * @param free_res resolution for sampling free training points along sensor beams
          */
         template <KernelType KType>
-        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution,
-                               float free_resolution);
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               std::chrono::system_clock::time_point timestamp,
+                               float ds_resolution, float free_resolution);
+        template <KernelType KType>
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               float ds_resolution, float free_resolution)
+        {
+            insert_pointcloud<KType>(cloud, origin, std::chrono::system_clock::now(), ds_resolution, free_resolution);
+        }
         // TODO: support non-labelled point cloud input, support label+score input and support label+score array input
 
         /*
@@ -182,14 +197,27 @@ namespace seddom
          * @param samples_per_beam number of randomly sampled free training points along sensor beams
          */
         template <KernelType KType>
-        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution,
-                               int samples_per_beam = 0);
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               std::chrono::system_clock::time_point timestamp,
+                               float ds_resolution, int samples_per_beam = 0);
+        template <KernelType KType>
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               float ds_resolution, int samples_per_beam = 0)
+        {
+            insert_pointcloud<KType>(cloud, origin, std::chrono::system_clock::now(), ds_resolution, samples_per_beam);
+        }
 
         /*
          * @brief Insert PCL PointCloud into BGKOctoMaps, with point-line distance support.
          */
         template <KernelType KType>
-        void insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution);
+        void insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                                  std::chrono::system_clock::time_point timestamp, float ds_resolution);
+        template <KernelType KType>
+        void insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution)
+        {
+            insert_pointcloud_pl<KType>(cloud, origin, std::chrono::system_clock::now(), ds_resolution);
+        }
 
         void dump_map(const std::string &path) const;
 
@@ -235,9 +263,9 @@ namespace seddom
 
         /// Get training data from one sensor scan.
         PointCloudXYZL::Ptr get_training_data(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
-                                                float ds_resolution, float free_resolution) const;
+                                              float ds_resolution, float free_resolution) const;
         PointCloudXYZL::Ptr get_random_training_data(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
-                                                float ds_resolution, int samples_per_beam);
+                                                     float ds_resolution, int samples_per_beam);
 
         float _resolution;
         float _block_size;
