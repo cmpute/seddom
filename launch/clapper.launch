@@ -1,0 +1,15 @@
+<launch>
+    <arg name="pkg" default="$(find seddom)" />
+    <arg name="data_path"/>
+
+    <arg name="debug" default="false"/>
+    <arg name="debug_prefix" value="gdb -ex run --args" if="$(arg debug)" />
+    <arg name="debug_prefix" value="" unless="$(arg debug)" />
+
+    <node name="player" pkg="rosbag" type="play" args="-d 2 -r 0.3 $(arg data_path)"/>
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find seddom)/rviz/clapper.rviz" launch-prefix="$(arg debug_prefix)" />
+    <node pkg="seddom" type="octomap_server" name="octomap_server" output="screen">
+        <param name="cloud_topic" value="/annotation_3dpoints"/>
+        <rosparam file="$(arg pkg)/config/clapper.yaml" command="load" />
+    </node>
+</launch>

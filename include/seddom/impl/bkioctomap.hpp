@@ -772,6 +772,23 @@ namespace seddom
         }
         return *this;
     }
+    
+    OCTOMAP_TDECL std::string
+    OCTOMAP_CLASS::summary() const
+    {
+        std::stringstream ss;
+        ss << "Total blocks:" << _blocks.size() << ", total chunks:" << _chunks.size() << std::endl;
+        ss << "Blocks stats:" << std::endl;
+        std::array<int, SemanticClass::NumClass> block_counts;
+        block_counts.fill(0);
+
+        for (auto leaf_iter = cbegin_leaf(); leaf_iter != cend_leaf(); leaf_iter++)
+            if (leaf_iter->is_classified())
+                block_counts[leaf_iter->get_semantics()]++;
+        for (int i = 0; i < SemanticClass::NumClass; i++)
+            ss << "  " << i << ": " << block_counts[i] << " blocks" << std::endl;
+        return ss.str();
+    }
 }
 
 #undef OCTOMAP_TDECL

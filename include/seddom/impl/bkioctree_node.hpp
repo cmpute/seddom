@@ -42,7 +42,6 @@ namespace seddom
     template <size_t NumClass>
     void Semantics<NumClass>::update_free(float ybar)
     {
-        assert(ybar >= 0);
         if (ybar <= 0)
             return;
         ms[0] += ybar;

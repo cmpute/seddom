@@ -55,6 +55,7 @@ if (WITH_PROFILER)
     if (easy_profiler_FOUND)
         if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
             message(STATUS "Profiler enabled")
+            link_libraries(easy_profiler)
         else()
             add_definitions(-DDISABLE_EASY_PROFILER)
             message(STATUS "Profiler found but not enabled")
@@ -196,10 +197,10 @@ set(MAPPING_SOURCE_FILES
 #   src/kitti_node.cpp
 # )
 
-add_executable(semantickitti_node
-    ${MAPPING_SOURCE_FILES}
-    src/semantickitti_node.cpp
-)
+# add_executable(semantickitti_node
+#     ${MAPPING_SOURCE_FILES}
+#     src/semantickitti_node.cpp
+# )
 
 add_executable(octomap_server
     ${MAPPING_SOURCE_FILES}
@@ -214,24 +215,20 @@ add_executable(octomap_server
 
 # target_link_libraries(toy_example_node
 #     ${catkin_LIBRARIES}
-#     easy_profiler
 # )
 
 # target_link_libraries(kitti_node
 #   ${catkin_LIBRARIES}
 #   ${OpenCV_LIBRARIES}
-#   easy_profiler
 # )
 
-target_link_libraries(semantickitti_node
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBRARIES}
-    easy_profiler
-)
+# target_link_libraries(semantickitti_node
+#     ${catkin_LIBRARIES}
+#     ${OpenCV_LIBRARIES}
+# )
 
 target_link_libraries(octomap_server
     ${catkin_LIBRARIES}
-    easy_profiler
 )
 
 #############

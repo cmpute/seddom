@@ -209,6 +209,8 @@ namespace seddom
         leaf_iterator search(float x, float y, float z);
         inline leaf_iterator search(pcl::PointXYZ p) { return search(p.x, p.y, p.z); }
 
+        std::string summary() const;
+
     private:
         template <KernelType KType>
         void inference_points(const PointCloudXYZL::Ptr training_data);
