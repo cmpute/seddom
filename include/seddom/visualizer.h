@@ -21,7 +21,7 @@ namespace seddom
         VARIANCE
     };
 
-    class OctomapVisualizer
+    class OctomapVisualizer // TODO: rename to ROSVisualizer and add separate hpp implementation
     {
     public:
         OctomapVisualizer(ros::NodeHandle nh, std::string topic, std::string frame_id = "/map") : _nh(nh),

@@ -18,6 +18,14 @@ namespace seddom
         PRUNED,
     };
 
+    enum class SaveFormat : char
+    {
+        FULL,
+        LABEL_WITH_DUAL_VAR,
+        LABEL_WITH_VAR,
+        LABEL
+    };
+
     /*
      * @brief Inference ouputs and occupancy state.
      *
@@ -32,6 +40,7 @@ namespace seddom
         using ClassVector = Eigen::Matrix<float, NumClass, 1>;
 
         static float prior; // prior on each class
+        static SaveFormat save_format;
 
         /*
          * @brief Constructors and destructor.
@@ -57,7 +66,7 @@ namespace seddom
          * @param ybar kernel density estimate of positive class (occupied)
          * @param hit whether the data comes from an actual hit
          */
-        void update(const ClassVector &ybars, bool hit);
+        bool update(const ClassVector &ybars, bool hit);
         void update_free(float ybar);
 
         /// Get probability of occupancy.
@@ -78,6 +87,7 @@ namespace seddom
 
         template <typename Packer>
         void msgpack_pack(Packer &pk) const;
+        void msgpack_unpack(msgpack::object const& o);
 
     private:
         ClassVector ms;

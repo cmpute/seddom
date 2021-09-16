@@ -78,7 +78,7 @@ namespace seddom
     }
 
     BGKI_TDECL template <KernelType KType> typename BGKI_CLASS::MatrixYType
-    BGKI_CLASS::predict(const typename BGKI_CLASS::MatrixXType &xs) const // TODO: add option to early stop updating if Ks = 0
+    BGKI_CLASS::predict(const typename BGKI_CLASS::MatrixXType &xs) const
     {
         PROFILE_FUNCTION;
 #ifndef NDEBUG

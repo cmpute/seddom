@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <mutex>
+#include <chrono>
 
 #include <parallel_hashmap/phmap.h>
 #include <pcl/point_cloud.h>
@@ -29,6 +30,9 @@ namespace seddom
                                                       std::allocator<T>,
                                                       4, std::mutex>;
 
+    typedef uint64_t BlockHashKey;
+    typedef uint64_t ChunkHashKey;
+
     /*
      * @brief BGKOctoMap
      *
@@ -45,14 +49,14 @@ namespace seddom
     public:
         /// Hask key to index Block given block's center.
         static constexpr size_t NumClass = SemanticClass::NumClass;
-        typedef int64_t BlockHashKey;
-        typedef int64_t ChunkHashKey;
         typedef Block<NumClass, BlockDepth> BlockType;
         typedef SemanticOctreeNode<NumClass> NodeType;
         typedef ParallelMap<BlockHashKey, BlockType> BlockMap;
         typedef ParallelSet<ChunkHashKey> BlockSet;
         typedef ParallelSet<ChunkHashKey> ChunkSet; // Chunk is used for map dumping and efficient range iterating
         static_assert(BlockDepth > 0);
+
+        friend class OctomapStorage;
 
 /// Extended Block. TODO: this is related to ell and block size, we could make this automatically determined
 #ifdef EXPAND_PREDICTION
@@ -79,8 +83,8 @@ namespace seddom
          * @param sf2 signal variance in GPs (default 1.0)
          * @param ell length-scale in GPs (default 1.0)
          * @param prior prior value for categories
-         * @param max_range max sensor range. This is responsible for cropping training data and map saving
-         *                  max_range <= 0 means no limit, range for map saving will comes from running statisitcs
+         * @param max_range max sensor range. This is responsible for cropping training data
+         *                  max_range <= 0 means no limit
          */
         SemanticBKIOctoMap(
             float resolution,
@@ -97,6 +101,15 @@ namespace seddom
         inline float chunk_depth() const { return _chunk_depth; }
         inline float chunk_size() const { return _chunk_size; }
         inline size_t chunk_count() const { return _chunks.size(); }
+        inline size_t memory_size() const
+        {
+            size_t result = sizeof(*this);
+            result += _blocks.size() * (sizeof(BlockType) + sizeof(BlockHashKey));
+            result += _chunks.size() * (sizeof(ChunkHashKey));
+            return result;
+        }
+        inline pcl::PointXYZ get_map_origin() const { return _map_origin; }
+        inline void set_map_origin(const pcl::PointXYZ &origin) { _map_origin = origin; }
 
         /// LeafIterator for iterating all leaf nodes in blocks
         template <bool Constant>
@@ -165,8 +178,15 @@ namespace seddom
          * @param free_res resolution for sampling free training points along sensor beams
          */
         template <KernelType KType>
-        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution,
-                               float free_resolution);
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               std::chrono::system_clock::time_point timestamp,
+                               float ds_resolution, float free_resolution);
+        template <KernelType KType>
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               float ds_resolution, float free_resolution)
+        {
+            insert_pointcloud<KType>(cloud, origin, std::chrono::system_clock::now(), ds_resolution, free_resolution);
+        }
         // TODO: support non-labelled point cloud input, support label+score input and support label+score array input
 
         /*
@@ -177,14 +197,27 @@ namespace seddom
          * @param samples_per_beam number of randomly sampled free training points along sensor beams
          */
         template <KernelType KType>
-        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution,
-                               int samples_per_beam = 0);
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               std::chrono::system_clock::time_point timestamp,
+                               float ds_resolution, int samples_per_beam = 0);
+        template <KernelType KType>
+        void insert_pointcloud(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                               float ds_resolution, int samples_per_beam = 0)
+        {
+            insert_pointcloud<KType>(cloud, origin, std::chrono::system_clock::now(), ds_resolution, samples_per_beam);
+        }
 
         /*
          * @brief Insert PCL PointCloud into BGKOctoMaps, with point-line distance support.
          */
         template <KernelType KType>
-        void insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution);
+        void insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
+                                  std::chrono::system_clock::time_point timestamp, float ds_resolution);
+        template <KernelType KType>
+        void insert_pointcloud_pl(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin, float ds_resolution)
+        {
+            insert_pointcloud_pl<KType>(cloud, origin, std::chrono::system_clock::now(), ds_resolution);
+        }
 
         void dump_map(const std::string &path) const;
 
@@ -193,6 +226,7 @@ namespace seddom
 
         /// Convert from hash key to block.
         inline pcl::PointXYZ block_key_to_center(BlockHashKey key) const;
+        inline pcl::PointXYZ chunk_key_to_center(ChunkHashKey key) const;
 
         /// Convert from block to hash key.
         inline BlockHashKey loc_to_block_key(pcl::PointXYZ center) const { return loc_to_block_key(center.x, center.y, center.z); }
@@ -231,9 +265,9 @@ namespace seddom
 
         /// Get training data from one sensor scan.
         PointCloudXYZL::Ptr get_training_data(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
-                                                float ds_resolution, float free_resolution) const;
+                                              float ds_resolution, float free_resolution) const;
         PointCloudXYZL::Ptr get_random_training_data(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
-                                                float ds_resolution, int samples_per_beam);
+                                                     float ds_resolution, int samples_per_beam);
 
         float _resolution;
         float _block_size;
@@ -248,7 +282,13 @@ namespace seddom
 
         BlockMap _blocks;
         ChunkSet _chunks;
+
         Eigen::Rand::Vmt19937_64 _rng;
+        pcl::PointXYZ _map_origin;
+        pcl::PointXYZ _latest_position;
+        std::chrono::system_clock::time_point _latest_time = std::chrono::system_clock::now();
+        // TODO: update from new measurement or database, otherwise initialize as 0 (from utc start)
+        // TODO: also store latest time for each block
 
         // TODO: add boost::signal for integration start and complete
         //       completion signal could be used for visualization update, map dump and load, 2D map generation

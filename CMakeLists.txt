@@ -11,14 +11,17 @@ message(STATUS "Build config: ${CMAKE_BUILD_TYPE}")
 
 find_package(OpenCV REQUIRED)
 find_package(msgpack REQUIRED)
+find_package(SQLite3 REQUIRED)
 # find_package(PCL REQUIRED COMPONENTS common filters)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/phmap)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/EigenRand)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/morton/include)
 
 # add optimization flags
-if (FALSE) # currently disabled due to lack of optimization
+option(WITH_VECTORIZATION "Build with vectorization" OFF) # currently disabled due to lack of optimization
+include(CheckCXXCompilerFlag)
+if (WITH_VECTORIZATION) 
     message(STATUS "Build with vectorization")
-    include(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
@@ -33,6 +36,30 @@ if (FALSE) # currently disabled due to lack of optimization
     endif()
     add_definitions(-DPCL_ENABLE_SSE)
     add_definitions(-DPCL_NO_PRECOMPILE)
+else(WITH_VECTORIZATION)
+    # check BMI2 or AVX2 instructions for Morton code
+    CHECK_CXX_COMPILER_FLAG("-mavx2" COMPILER_SUPPORTS_MAVX2)
+    CHECK_CXX_COMPILER_FLAG("-mbmi2" COMPILER_SUPPORTS_MBMI2)
+    if(COMPILER_SUPPORTS_MBMI2)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2")
+        add_definitions(-D__BMI2__)
+    elseif(COMPILER_SUPPORTS_MAVX2)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
+        add_definitions(-D__AVX2__)
+    else()
+        message(FATAL_ERROR "AVX2 or BMI2 instruction support are mandatory!")
+    endif()
+endif(WITH_VECTORIZATION)
+
+option(WITH_FASTMATH "Build with fast math optimization" ON)
+if(WITH_FASTMATH)
+    CHECK_CXX_COMPILER_FLAG("-ffast-math" COMPILER_SUPPORTS_FASTMATH)
+    if(COMPILER_SUPPORTS_FASTMATH)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
+    endif()
+    add_definitions(-DEIGEN_FAST_MATH=1)
+else()
+    add_definitions(-DEIGEN_FAST_MATH=0)
 endif()
 
 # enable OpenMP
@@ -63,6 +90,7 @@ if (WITH_PROFILER)
     else ()
         message(STATUS "Profiler not found")
     endif ()
+    add_definitions(-DPROFILING)
 endif ()
 
 option(EXPAND_PREDICTION "Use 27 neighbor blocks instead of 7 during prediction" OFF)
@@ -169,6 +197,7 @@ include_directories(
     include/dataset_devkit
     ${catkin_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
+    ${SQLite3_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -222,13 +251,15 @@ add_executable(octomap_server
 #   ${OpenCV_LIBRARIES}
 # )
 
-# target_link_libraries(semantickitti_node
-#     ${catkin_LIBRARIES}
-#     ${OpenCV_LIBRARIES}
-# )
+target_link_libraries(semantickitti_node
+    ${catkin_LIBRARIES}
+    ${OpenCV_LIBRARIES}
+    ${SQLite3_LIBRARIES}
+)
 
 target_link_libraries(octomap_server
     ${catkin_LIBRARIES}
+    ${SQLite3_LIBRARIES}
 )
 
 #############
