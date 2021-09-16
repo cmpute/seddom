@@ -1,9 +1,0 @@
-<launch>
-    <arg name="debug" default="false"/>
-    <arg name="debug_prefix" value="gdb -ex run --args" if="$(arg debug)" />
-    <arg name="debug_prefix" value="" unless="$(arg debug)" />
-    <node pkg="seddom" type="octomap_server" name="server" output="screen" launch-prefix="$(arg debug_prefix)">
-
-    </node>
-
-</launch>

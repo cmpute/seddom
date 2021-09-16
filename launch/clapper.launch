@@ -12,6 +12,7 @@
     <node pkg="seddom" type="octomap_server" name="octomap_server" output="screen">
         <param name="cloud_topic" value="/annotation_3dpoints"/>
         <param name="bag_path" value="$(arg data_path)" unless="$(arg online)"/>
+        <param name="map_path" value="/home/jacobz/temp_map.db3"/>
         <rosparam file="$(arg pkg)/config/clapper.yaml" command="load" />
     </node>
 </launch>

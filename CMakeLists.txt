@@ -251,11 +251,11 @@ add_executable(octomap_server
 #   ${OpenCV_LIBRARIES}
 # )
 
-target_link_libraries(semantickitti_node
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBRARIES}
-    ${SQLite3_LIBRARIES}
-)
+# target_link_libraries(semantickitti_node
+#     ${catkin_LIBRARIES}
+#     ${OpenCV_LIBRARIES}
+#     ${SQLite3_LIBRARIES}
+# )
 
 target_link_libraries(octomap_server
     ${catkin_LIBRARIES}

@@ -16,6 +16,7 @@
 
 #include "bkioctomap.h"
 #include "visualizer.h"
+#include "storage.h"
 
 namespace seddom
 {
@@ -28,6 +29,8 @@ namespace seddom
         SemanticOccupancyMapServer(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private) : _nh(nh), _nh_private(nh_private), _listener(_tfbuffer)
         {
             std::string output_topic("/octomap");
+            std::string map_path("");
+
             int chunk_depth = 6;
             float sf2 = 10.0;
             float ell = 0.3;
@@ -38,6 +41,7 @@ namespace seddom
             nh_private.param<std::string>("cloud_topic", _cloud_topic, _cloud_topic);
             nh_private.param<std::string>("output_topic", output_topic, output_topic);
             nh_private.param<std::string>("map_frame_id", _map_frame_id, _map_frame_id);
+            nh_private.param<std::string>("map_path", map_path, map_path);
 
             nh_private.param<float>("resolution", resolution, resolution);
             nh_private.param<int>("chunk_depth", chunk_depth, chunk_depth);
@@ -65,6 +69,12 @@ namespace seddom
                                           << "free_resolution: " << _free_resolution << std::endl
                                           << "ds_resolution: " << _ds_resolution << std::endl
                                           << "max_range: " << max_range << std::endl);
+
+            if (!map_path.empty())
+            {
+                _storage = std::make_unique<seddom::OctomapStorage>(map_path, /* active_range */ 100);
+                ROS_INFO_STREAM("Params compatible: " << _storage->check_params(*_map) << std::endl);
+            }
         }
 
         void cloud_callback(const sensor_msgs::PointCloud2ConstPtr &cloud)
@@ -177,6 +187,8 @@ namespace seddom
 
             if (_visualize)
                 _vis_pub->publish_octomap<SemanticClass, BlockDepth, OctomapVisualizeMode::SEMANTICS>(*_map);
+            if (_storage != nullptr)
+                _storage->sync(*_map);
         }
 
     protected:
@@ -189,6 +201,7 @@ namespace seddom
         ros::Subscriber _cloud_sub;
         std::string _cloud_topic = "/semantic_points";
         std::unique_ptr<seddom::OctomapVisualizer> _vis_pub;
+        std::unique_ptr<seddom::OctomapStorage> _storage;
 
         std::string _map_frame_id = "odom";
         int _samples_per_beam = -1;
