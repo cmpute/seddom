@@ -676,7 +676,7 @@ namespace seddom
             return leaf_iterator(this, block_iter, block_iter->second.search(x, y, z));
     }
 
-    OCTOMAP_TDECL void
+    OCTOMAP_TDECL size_t
     OCTOMAP_CLASS::dump_map(const std::string &path) const
     {
         std::ofstream output;
@@ -697,7 +697,9 @@ namespace seddom
             packer.pack(iter->second);
         }
 
+        size_t size = output.tellp();
         output.close();
+        return size;
     }
 
     OCTOMAP_TDECL inline BlockHashKey

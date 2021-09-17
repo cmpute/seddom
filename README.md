@@ -6,9 +6,14 @@ Fast semantic dense occupancy mapping based on random free space sampling and sp
 ### Building with catkin
 
 ```bash
-# catkin_ws/src$ git clone
+catkin_ws/src$ git clone https://github.com/catkin/catkin_simple.git
+catkin_ws/src$ git clone <this repository>
 catkin_ws/src$ cd ..
+
 catkin_ws$ catkin_make -DCMAKE_BUILD_TYPE=Release
+# or
+catkin_ws$ catkin build --cmake-args -DCMAKE_BUILD_TYPE=Release
+
 catkin_ws$ source ~/catkin_ws/devel/setup.bash
 ```
 
@@ -50,3 +55,10 @@ You will see semantic map in RViz. It also query each ground truth point for eva
 
 ## Reference
 Codebase of this project is based on [BKISemanticMapping](https://github.com/ganlumomo/BKISemanticMapping.git). Thanks for their great work!
+
+## Online mapping
+
+```bash
+$ roslaunch seddom clapper.launch data_path:=...  # start mapping with data from rosbag in CLAPPER format
+$ rosservice call /octomap_server/dump_map ~/test.bin  # dump map into a serialized format
+```

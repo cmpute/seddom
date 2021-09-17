@@ -17,6 +17,7 @@
 #include "bkioctomap.h"
 #include "visualizer.h"
 #include "storage.h"
+#include "seddom/DumpMap.h"
 
 namespace seddom
 {
@@ -26,7 +27,7 @@ namespace seddom
     public:
         typedef SemanticBKIOctoMap<SemanticClass, BlockDepth> MapType;
 
-        SemanticOccupancyMapServer(const ros::NodeHandle &nh, const ros::NodeHandle &nh_private) : _nh(nh), _nh_private(nh_private), _listener(_tfbuffer)
+        SemanticOccupancyMapServer(ros::NodeHandle &nh, ros::NodeHandle &nh_private) : _nh(nh), _nh_private(nh_private), _listener(_tfbuffer)
         {
             std::string output_topic("/octomap");
             std::string map_path("");
@@ -58,6 +59,7 @@ namespace seddom
             _cloud_sub = _nh.subscribe(_cloud_topic, 4, &SemanticOccupancyMapServer::cloud_callback, this);
             if (_visualize)
                 _vis_pub = std::make_unique<seddom::OctomapVisualizer>(nh, output_topic, _map_frame_id);
+            _dump_service = nh_private.advertiseService("dump_map", &SemanticOccupancyMapServer::dump_map_callback, this);
 
             ROS_INFO_STREAM("Parameters:" << std::endl
                                           << "block_depth: " << BlockDepth << std::endl
@@ -75,6 +77,13 @@ namespace seddom
                 _storage = std::make_unique<seddom::OctomapStorage>(map_path, /* active_range */ 100);
                 ROS_INFO_STREAM("Params compatible: " << _storage->check_params(*_map) << std::endl);
             }
+        }
+
+        bool dump_map_callback(seddom::DumpMap::Request &req, seddom::DumpMap::Response &res)
+        {
+            res.size = _map->dump_map(req.output_path);
+            ROS_INFO("Map dumping finished.")
+            return true;
         }
 
         void cloud_callback(const sensor_msgs::PointCloud2ConstPtr &cloud)
@@ -199,6 +208,7 @@ namespace seddom
         tf2_ros::Buffer _tfbuffer;
         tf2_ros::TransformListener _listener;
         ros::Subscriber _cloud_sub;
+        ros::ServiceServer _dump_service;
         std::string _cloud_topic = "/semantic_points";
         std::unique_ptr<seddom::OctomapVisualizer> _vis_pub;
         std::unique_ptr<seddom::OctomapStorage> _storage;

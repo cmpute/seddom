@@ -219,7 +219,7 @@ namespace seddom
             insert_pointcloud_pl<KType>(cloud, origin, std::chrono::system_clock::now(), ds_resolution);
         }
 
-        void dump_map(const std::string &path) const;
+        size_t dump_map(const std::string &path) const;
 
         /// Get bounding box of the map.
         void get_bbox(pcl::PointXYZ &lim_min, pcl::PointXYZ &lim_max) const;
