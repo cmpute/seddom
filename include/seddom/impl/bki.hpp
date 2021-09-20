@@ -78,7 +78,7 @@ namespace seddom
     }
 
     BGKI_TDECL template <KernelType KType> typename BGKI_CLASS::MatrixYType
-    BGKI_CLASS::predict(const typename BGKI_CLASS::MatrixXType &xs) const // TODO: add option to early stop updating if Ks = 0
+    BGKI_CLASS::predict(const typename BGKI_CLASS::MatrixXType &xs) const
     {
         PROFILE_FUNCTION;
 #ifndef NDEBUG
@@ -131,7 +131,9 @@ namespace seddom
             typename BGKL_CLASS::MatrixKType r(_x.rows(), xs.rows());
             d = dist_pl<T, Dim>(_x, xs, r).transpose();
             auto cov = covSparse<T, Dim>(d / _ell, _sf2);
-            Ks = cov.array() * (1 - r.cwiseMin(1).transpose().array());
+            auto rarray = r.transpose().array();
+            // Ks = cov.array() * (rarray < 1).select(rarray, 0); // linear weighted
+            Ks = cov.array() * (rarray < 0.5).select(rarray, 1 - rarray).cwiseMax(0.0); // symmetric linear weighted
         }
         // else if (KType == KernelType::Materniso3)
         //     Ks = covMaterniso3<T, Dim>(d * SQ3 / _ell, _sf2);
@@ -139,7 +141,7 @@ namespace seddom
             assert(false);
 
         PROFILE_SPLIT("Dot product");
-        return Ks.rowwise().sum();
+        return Ks.rowwise().sum(); // TODO: clamp max out to prevent new occupancy not being updated?
     }
 }
 

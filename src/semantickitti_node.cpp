@@ -90,11 +90,11 @@ int main(int argc, char **argv)
     semantic_kitti_data.set_up_evaluation(dir + '/' + gt_label_prefix, dir + '/' + evaluation_result_prefix);
     semantic_kitti_data.process_scans(dir + '/' + input_data_prefix, dir + '/' + input_label_prefix, scan_num, query, visualize);
 
-    ros::spin();
-
 #ifdef BUILD_WITH_EASY_PROFILER
-    profiler::dumpBlocksToFile("/home/jacobz/Coding/ws/src/BKISemanticMapping/profile.prof");
+    profiler::dumpBlocksToFile("/home/jacobz/Coding/ws/src/seddom/profile.prof");
 #endif
+
+    ros::spin();
 
     return 0;
 }

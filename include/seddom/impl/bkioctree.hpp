@@ -43,18 +43,27 @@ namespace seddom
     }
 
     OCTOMAP_OCTREE_TDECL inline size_t
-    OCTOMAP_OCTREE_CLASS::depth_index_to_index(const typename OCTOMAP_OCTREE_CLASS::DepthIndex& depth_index)
+    OCTOMAP_OCTREE_CLASS::depth_index_to_index(
+        const typename OCTOMAP_OCTREE_CLASS::DepthIndex &depth_index)
     {
         return (ipow8(depth_index.first) - 1) / 7 + depth_index.second;
     }
-    
-    OCTOMAP_OCTREE_TDECL template <typename Packer> 
+
+    OCTOMAP_OCTREE_TDECL template <typename Packer>
     void
     OCTOMAP_OCTREE_CLASS::msgpack_pack(Packer &pk) const
     {
         pk.pack_array(_nodes.size());
         for (size_t i = 0; i < _nodes.size(); ++i)
             pk.pack(_nodes[i]);
+    }
+
+    OCTOMAP_OCTREE_TDECL void
+    OCTOMAP_OCTREE_CLASS::msgpack_unpack(msgpack::object const& o)
+    {
+        assert(o.type == msgpack::type::ARRAY);
+        for (size_t i = 0; i < o.via.array.size; ++i)
+            o.via.array.ptr[i].convert(_nodes[i]);
     }
 }
 

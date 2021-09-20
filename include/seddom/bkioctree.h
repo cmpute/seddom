@@ -109,8 +109,10 @@ namespace seddom
         /// @return number of cells in each direction
         constexpr unsigned short cell_count() const { return 1 << (MaxDepth - 1); }
         inline size_t leaf_count() const { return ipow8(MaxDepth - 1); };
+        constexpr size_t node_count() const { return _nodes.size(); }
 
         template <typename Packer> void msgpack_pack(Packer &pk) const;
+        void msgpack_unpack(msgpack::object const& o);
 
         static inline DepthIndex index_to_depth_index(size_t index);
         static inline size_t depth_index_to_index(const DepthIndex& depth_index);

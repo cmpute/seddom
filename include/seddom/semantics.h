@@ -17,21 +17,23 @@ namespace seddom
     class ToyDataset
     {
     public:
-        static constexpr size_t NumClass = 4;
+        static constexpr size_t NumClass = 5;
         static RGB getColor(int semantic)
         {
-            assert(0 <= semantic && semantic <= 19 && "Invalid semantic value!");
+            assert(0 <= semantic && semantic < NumClass && "Invalid semantic value!");
             switch (semantic)
             {
             default:
             case 0:
                 return _color_ignore;
-            case 1:
+            case 1: 
                 return _scolor3(255, 0, 0);
             case 2:
                 return _scolor3(70, 130, 180);
             case 3:
                 return _scolor3(218, 112, 214);
+            case 4: // noise
+                return _scolor3(128, 128, 128);
             }
         }
     };
@@ -42,7 +44,7 @@ namespace seddom
         static constexpr size_t NumClass = 20;
         static RGB getColor(int semantic)
         {
-            assert(0 <= semantic && semantic <= 19 && "Invalid semantic value!");
+            assert(0 <= semantic && semantic < NumClass && "Invalid semantic value!");
             switch (semantic)
             {
             default:
@@ -96,7 +98,7 @@ namespace seddom
         static constexpr size_t NumClass = 14;
         static RGB getColor(int semantic)
         {
-            assert(0 <= semantic && semantic <= 13 && "Invalid semantic value!");
+            assert(0 <= semantic && semantic < NumClass && "Invalid semantic value!");
             switch (semantic)
             {
             default:
@@ -143,7 +145,7 @@ namespace seddom
         static constexpr size_t NumClass = 12;
         static RGB getColor(int semantic)
         {
-            assert(0 <= semantic && semantic <= 11 && "Invalid semantic value!");
+            assert(0 <= semantic && semantic < NumClass && "Invalid semantic value!");
             switch (semantic)
             {
             default:
@@ -181,7 +183,7 @@ namespace seddom
         static constexpr size_t NumClass = 17;
         static RGB getColor(int semantic)
         {
-            assert(0 <= semantic && semantic <= 11 && "Invalid semantic value!");
+            assert(0 <= semantic && semantic < NumClass && "Invalid semantic value!");
             switch (semantic)
             {
             default:

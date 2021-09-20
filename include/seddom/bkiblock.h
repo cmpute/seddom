@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 
 #include "bkioctree_node.h"
 #include "bkioctree.h"
@@ -24,6 +25,7 @@ namespace seddom
         using typename SemanticOctree<NumClass, MaxDepth>::DepthIndex;
         using SemanticOctree<NumClass, MaxDepth>::cell_count;
         using SemanticOctree<NumClass, MaxDepth>::leaf_count;
+        using SemanticOctree<NumClass, MaxDepth>::node_count;
         using SemanticOctree<NumClass, MaxDepth>::leaf_at;
         using SemanticOctree<NumClass, MaxDepth>::begin_leaf;
         using SemanticOctree<NumClass, MaxDepth>::cbegin_leaf;
@@ -85,6 +87,7 @@ namespace seddom
 
         float _resolution;
         pcl::PointXYZ _center;
+        std::chrono::system_clock::time_point _latest_time;
     };
 }
 

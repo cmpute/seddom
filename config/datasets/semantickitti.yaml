@@ -5,11 +5,13 @@ resolution: 0.3
 num_class: 20 # Number of classes
 
 # Sampling resolutions
-free_resolution: 100 # Free space sampling resolution
+random_samples_per_beam: 0
+free_resolution: -1 # Free space sampling resolution
 ds_resolution: 0.1 # Downsampling factor
+chunk_depth: 6
 
 # Information about range-finder data
-scan_num: 100 # How many scans to use
+scan_num: 50 # How many scans to use
 max_range: -1 # Sensor max range (m)
 
 # Dataset information
@@ -18,5 +20,5 @@ input_label_prefix: predictions/
 lidar_pose_file: poses.txt
 gt_label_prefix: labels/
 evaluation_result_prefix: evaluations/
-query: true
+query: false
 visualize: true

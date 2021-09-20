@@ -21,7 +21,7 @@ namespace seddom
         VARIANCE
     };
 
-    class OctomapVisualizer
+    class OctomapVisualizer // TODO: rename to ROSVisualizer and add separate hpp implementation
     {
     public:
         OctomapVisualizer(ros::NodeHandle nh, std::string topic, std::string frame_id = "/map") : _nh(nh),
@@ -91,7 +91,7 @@ namespace seddom
             // fill blocks
             for (auto it = map.cbegin_leaf(); it != map.cend_leaf(); ++it)
             {
-                if (it->get_state() == seddom::State::OCCUPIED)
+                if (it->get_state() == seddom::State::OCCUPIED || it->get_state() == seddom::State::PREDICTED)
                 {
                     pcl::PointXYZ p = it.get_loc();
                     switch (Mode)

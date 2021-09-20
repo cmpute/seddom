@@ -1,0 +1,19 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "",
+        "limitSymbolsToIncludedHeaders": true
+      },
+      "includePath": [
+        "/opt/ros/noetic/include/**",
+        "/home/jacobz/Mapping/ws/src/seddom/include/**",
+        "/home/jacobz/Mapping/ws/src/seddom/thirdparty/phmap",
+        "/home/jacobz/Mapping/ws/src/seddom/thirdparty/EigenRand",
+        "/usr/include/**"
+      ],
+      "name": "ROS"
+    }
+  ],
+  "version": 4
+}
