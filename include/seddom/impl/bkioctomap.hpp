@@ -65,13 +65,15 @@ namespace seddom
     constexpr size_t OCTOMAP_CLASS::NumClass;
 
     OCTOMAP_TDECL
-    OCTOMAP_CLASS::SemanticBKIOctoMap(float resolution,
+    OCTOMAP_CLASS::SemanticBKIOctoMap(bool occlusion_aware,
+                                      float resolution,
                                       size_t chunk_depth,
                                       float sf2,
                                       float ell,
                                       float prior,
                                       float max_range)
-        : _resolution(resolution),
+        : _occlusion_aware(occlusion_aware),
+          _resolution(resolution),
           _chunk_depth(chunk_depth),
           _block_size((float)pow(2, BlockDepth - 1) * resolution),
           _chunk_size((float)pow(2, BlockDepth + chunk_depth - 2) * resolution),
@@ -117,6 +119,7 @@ namespace seddom
         inference_points<KType>(xy);
 
         _latest_position = origin;
+        _latest_time = timestamp;
 
         #ifdef PROFILING
         INFO_WRITE("Map updated, memory size: " << memory_size());
@@ -144,6 +147,7 @@ namespace seddom
         inference_points<KType>(xy);
 
         _latest_position = origin;
+        _latest_time = timestamp;
 
         #ifdef PROFILING
         INFO_WRITE("Map updated, memory size: " << memory_size());
@@ -228,6 +232,8 @@ namespace seddom
                 block_iter = _blocks.emplace(key,
                                              Block<NumClass, BlockDepth>(block_key_to_center(key), _resolution))
                                  .first;
+                if (_occluded_blocks.find(key) != _occluded_blocks.end())
+                    _occluded_blocks.erase(key);
                 if (_chunk_depth > 1)
                 {
                     ChunkHashKey ckey = block_to_chunk_key(key);
@@ -239,9 +245,6 @@ namespace seddom
 
             PROFILE_THREAD_SPLIT("Collect points");
             Eigen::Matrix<float, -1, 4> xs = block.get_node_locs();
-
-            // currently the hit flag is only in block level, which might not be enough
-            bool is_hit = train_blocks.find(key) != train_blocks.end();
 
             if (KType == KernelType::CSM)
             {
@@ -257,7 +260,7 @@ namespace seddom
                 for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
                 {
                     // Only need to update if kernel density total kernel density est > 0
-                    leaf_it->update(ybars.row(j), is_hit);
+                    leaf_it->update(ybars.row(j));
                 }
             }
             else if (KType == KernelType::BGK || KType == KernelType::SBGK)
@@ -277,8 +280,7 @@ namespace seddom
                     int j = 0;
                     for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
                     {
-                        // TODO: remove block if block is just intialized (timestamp = 0) and all updates return false;
-                        leaf_it->update(ybars.row(j), is_hit);
+                        leaf_it->update(ybars.row(j));
                     }
                 }
             }
@@ -297,7 +299,6 @@ namespace seddom
     {
         PROFILE_FUNCTION;
         DEBUG_WRITE("Insert pointcloud: " << "cloud size = " << cloud->size() << ", origin = " << origin);
-        _occluded_blocks.clear(); // generate occlusion for every frame
 
         PROFILE_BLOCK("Downsample hits");
         PointCloudXYZL::Ptr sampled_hits = downsample<pcl::PointXYZL>(cloud, ds_resolution);
@@ -344,8 +345,12 @@ namespace seddom
         ////////// Training //////////
         PROFILE_SPLIT("Train free beams");
         // TODO: add option to disable occlusion function
-        auto in_blocks = get_blocks_in_bbox(min_pt, max_pt, true); // TODO: add ground range filter
-        // auto in_blocks = get_mapped_blocks_in_bbox(min_pt, max_pt, origin);
+        std::vector<BlockHashKey> in_blocks;
+        if (_occlusion_aware)
+            // TODO: add ground range filter, and further optimize which blocks to be considered
+            in_blocks = get_blocks_in_bbox(min_pt, max_pt, origin);
+        else
+            in_blocks = get_mapped_blocks_in_bbox(min_pt, max_pt, origin);
         float search_range = _block_size / 2 * SQ3 + _ell;
 
 #ifdef OPENMP
@@ -371,12 +376,25 @@ namespace seddom
             if (rit == beam_tree.qend())
             {
                 PROFILE_THREAD_BLOCK("Occluded beam");
+                if (!_occlusion_aware)
+                    continue;
+
                 // this block is occluded if it lies on some extended beams but not on any actual beams
                 p1 = { phi - rs, theta - rs, 0 };
                 p2 = { phi - rs, theta - rs, r };
                 bq = { p1, p2 };
                 if (beam_tree.qbegin(bgi::within(bq)) != beam_tree.qend())
-                    _occluded_blocks.insert(hkey);
+                {
+                    auto bit = _blocks.find(hkey);
+                    if (bit == _blocks.end())
+                        _occluded_blocks.insert(hkey);
+                    else
+                    {
+                        BlockType &block = bit->second;
+                        for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it)
+                            leaf_it->mark_occluded(); // TODO: occlusion test for each node? could use point-to-line distance
+                    }
+                }
             }
             else
             {
@@ -422,6 +440,7 @@ namespace seddom
 
         DEBUG_WRITE("Free prediction done");
         _latest_position = origin;
+        _latest_time = timestamp;
 
         #ifdef PROFILING
         INFO_WRITE("Map updated, memory size: " << memory_size());

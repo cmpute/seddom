@@ -30,30 +30,27 @@ namespace seddom
     }
 
     template <size_t NumClass>
-    bool Semantics<NumClass>::update(const ClassVector &ybars, bool hit)
+    bool Semantics<NumClass>::update(const ClassVector &ybars, std::chrono::system_clock::time_point timestamp)
     {
         if (ybars.sum() < 1e-5)
-            return false; // skip if the inferenced value is too small
+            return false; // skip if the impact is too small
 
         ms += ybars;
-
-        if (get_semantics() == 0)
-            _state = State::FREE;
-        else if (hit || _state == State::OCCUPIED)
-            _state = State::OCCUPIED; // hit or previously hit
-        else
-            _state = State::PREDICTED;
+        _state = get_semantics() == 0 ? State::FREE : State::OCCUPIED; // removed state source flags
+        _latest_time = timestamp;
         return true;
     }
 
     template <size_t NumClass>
-    void Semantics<NumClass>::update_free(float ybar)
+    bool Semantics<NumClass>::update_free(float ybar, std::chrono::system_clock::time_point timestamp)
     {
-        if (ybar <= 0)
-            return;
+        if (ybar < 1e-5)
+            return false; // skip if the impact is too small
+
         ms[0] += ybar;
-        if (get_semantics() == 0)
-            _state = State::FREE;
+        _state = get_semantics() == 0 ? State::FREE : State::OCCUPIED; // removed state source flags
+        _latest_time = timestamp;
+        return true;
     }
 
     template <size_t NumClass>

@@ -67,17 +67,19 @@ namespace seddom
 
     public:
         SemanticBKIOctoMap() : SemanticBKIOctoMap(
-                                   0.1f, // resolution
-                                   6,    // chunk_depth
-                                   1.0,  // sf2
-                                   1.0,  // ell
-                                   1.0f, // prior
-                                   -1    // max_range
+                                   false, // process occlusion
+                                   0.1f,  // resolution
+                                   6,     // chunk_depth
+                                   1.0,   // sf2
+                                   1.0,   // ell
+                                   1.0f,  // prior
+                                   -1     // max_range
                                )
         {
         }
 
         /*
+         * @param occlusion_aware process occluded blocks or not
          * @param resolution (default 0.1m)
          * @param block_depth maximum depth of Octree (default 4)
          * @param sf2 signal variance in GPs (default 1.0)
@@ -87,6 +89,7 @@ namespace seddom
          *                  max_range <= 0 means no limit
          */
         SemanticBKIOctoMap(
+            bool occlusion_aware,
             float resolution,
             size_t chunk_depth,
             float sf2,
@@ -269,6 +272,7 @@ namespace seddom
         PointCloudXYZL::Ptr get_random_training_data(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
                                                      float ds_resolution, int samples_per_beam);
 
+        bool _occlusion_aware;
         float _resolution;
         float _block_size;
         size_t _chunk_depth;
@@ -281,7 +285,8 @@ namespace seddom
         float _ell; // length-scale
 
         BlockMap _blocks;
-        BlockSet _occluded_blocks;
+        BlockSet _occluded_blocks; // this set only stores occluded blocks that are not present in _blocks
+                                   // TODO: add flag to ignore these addtional occluded blocks
         ChunkSet _chunks;
 
         Eigen::Rand::Vmt19937_64 _rng;

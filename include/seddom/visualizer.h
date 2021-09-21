@@ -24,7 +24,7 @@ namespace seddom
     class OctomapVisualizer // TODO: rename to ROSVisualizer and add separate hpp implementation
     {
     public:
-        OctomapVisualizer(ros::NodeHandle nh, std::string topic, std::string frame_id = "/map") : _nh(nh),
+        OctomapVisualizer(ros::NodeHandle nh, std::string topic, std::string frame_id = "map") : _nh(nh),
                                                                    _topic(topic),
                                                                    _frame_id(frame_id)
         {
@@ -91,7 +91,7 @@ namespace seddom
             // fill blocks
             for (auto it = map.cbegin_leaf(); it != map.cend_leaf(); ++it)
             {
-                if (it->get_state() == seddom::State::OCCUPIED || it->get_state() == seddom::State::PREDICTED)
+                if (it->get_state() == seddom::State::OCCUPIED)
                 {
                     pcl::PointXYZ p = it.get_loc();
                     switch (Mode)
@@ -107,6 +107,10 @@ namespace seddom
                         insert_point3d_variance(msg, it.get_depth(), p.x, p.y, p.z, min_v, max_v, it->get_vars()[it->get_semantics()]);
                         break;
                     }
+                }
+                else if (it->get_state() == seddom::State::OCCLUDED)
+                {
+                    // TODO: use unified color for OCCLUDED blocks (grey?)
                 }
             }
 

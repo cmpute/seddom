@@ -32,6 +32,7 @@ namespace seddom
             std::string output_topic("/octomap");
             std::string map_path("");
 
+            bool occlusion_aware = true;
             int chunk_depth = 6;
             float sf2 = 10.0;
             float ell = 0.3;
@@ -44,6 +45,7 @@ namespace seddom
             nh_private.param<std::string>("map_frame_id", _map_frame_id, _map_frame_id);
             nh_private.param<std::string>("map_path", map_path, map_path);
 
+            nh_private.param<bool>("occlusion_aware", occlusion_aware, occlusion_aware);
             nh_private.param<float>("resolution", resolution, resolution);
             nh_private.param<int>("chunk_depth", chunk_depth, chunk_depth);
             nh_private.param<float>("sf2", sf2, sf2);
@@ -55,7 +57,7 @@ namespace seddom
             nh_private.param<bool>("visualize", _visualize, _visualize);
             nh_private.param<int>("random_samples_per_beam", _samples_per_beam, _samples_per_beam);
 
-            _map = std::make_shared<MapType>(resolution, chunk_depth, sf2, ell, prior, max_range);
+            _map = std::make_shared<MapType>(occlusion_aware, resolution, chunk_depth, sf2, ell, prior, max_range);
             _cloud_sub = _nh.subscribe(_cloud_topic, 4, &SemanticOccupancyMapServer::cloud_callback, this);
             if (_visualize)
                 _vis_pub = std::make_unique<seddom::OctomapVisualizer>(nh, output_topic, _map_frame_id);
@@ -82,7 +84,7 @@ namespace seddom
         bool dump_map_callback(seddom::DumpMap::Request &req, seddom::DumpMap::Response &res)
         {
             res.size = _map->dump_map(req.output_path);
-            ROS_INFO("Map dumping finished.")
+            ROS_INFO("Map dumping finished.");
             return true;
         }
 
