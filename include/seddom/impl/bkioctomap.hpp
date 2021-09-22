@@ -344,7 +344,7 @@ namespace seddom
 
         ////////// Training //////////
         PROFILE_SPLIT("Train free beams");
-        // TODO: add option to disable occlusion function
+        _occluded_blocks.clear();
         std::vector<BlockHashKey> in_blocks;
         if (_occlusion_aware)
             // TODO: add ground range filter, and further optimize which blocks to be considered
@@ -380,19 +380,35 @@ namespace seddom
                     continue;
 
                 // this block is occluded if it lies on some extended beams but not on any actual beams
-                p1 = { phi - rs, theta - rs, 0 };
-                p2 = { phi - rs, theta - rs, r };
+                p1.set<2>(0);
+                p2.set<2>(r - _ell); // add tolerance of _ell
                 bq = { p1, p2 };
-                if (beam_tree.qbegin(bgi::within(bq)) != beam_tree.qend())
+                rit = beam_tree.qbegin(bgi::within(bq));
+                if (rit != beam_tree.qend())
                 {
                     auto bit = _blocks.find(hkey);
                     if (bit == _blocks.end())
                         _occluded_blocks.insert(hkey);
                     else
                     {
+                        std::vector<size_t> indices;
+                        for (size_t j = 0; rit != beam_tree.qend() && j < _max_beams; ++rit, ++j)
+                            indices.push_back(rit->second);
+                        Eigen::Matrix<float, -1, 4> lines(indices.size(), 4);
+                        for (size_t j = 0; j < lines.rows(); j++)
+                            lines.row(j) = ptarray.col(indices[j]);
+
                         BlockType &block = bit->second;
-                        for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it)
-                            leaf_it->mark_occluded(); // TODO: occlusion test for each node? could use point-to-line distance
+                        Eigen::Matrix<float, -1, 4> points = block.get_node_locs();
+                        points = points.rowwise() - v_origin.transpose();
+                        Eigen::Matrix<float, -1, -1> _; // used to select correct function
+                        auto pldist = seddom::dist_pl<float, 3>(lines.leftCols(3), points.leftCols(3), _);
+                        Eigen::Matrix<bool, 1, -1> validity = pldist.colwise().minCoeff().array() < _ell;
+                        
+                        size_t j = 0;
+                        for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, j++)
+                            if (validity(j)) // only mark nodes with close enough distance
+                                leaf_it->mark_occluded(timestamp);
                     }
                 }
             }
@@ -433,8 +449,6 @@ namespace seddom
                 }
                 else
                     assert(false);
-
-                // TODO: remove block with all free space?
             }
         }
 

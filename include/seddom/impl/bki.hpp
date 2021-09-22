@@ -30,7 +30,7 @@ namespace seddom
         {
             T len = l.row(i).norm();
             auto dl = p.rowwise().cross(l.row(i)).rowwise().norm() / len;
-            auto condition = p.rowwise().norm().array() < len; // gating with range circle
+            auto condition = p.rowwise().norm().array() < len; // gating with range circle instead of projection for faster calculation
             d.row(i) = condition.select(dl, max_dist);
         }
         return d;

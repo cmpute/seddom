@@ -22,10 +22,8 @@ namespace seddom
         PRUNED     = 0b1000, // not used
     };
 
-    constexpr State operator |( const State lhs, const State rhs)
-    {
-        return (State)(char(lhs) | char(rhs));
-    }
+    constexpr State operator| (const State lhs, const State rhs) { return (State)(char(lhs) | char(rhs)); }
+    constexpr State operator& (const State lhs, const State rhs) { return (State)(char(lhs) & char(rhs)); }
 
     enum class SaveFormat : char
     {
@@ -99,7 +97,13 @@ namespace seddom
          */
         inline State get_state() const { return _state; }
 
-        inline void mark_occluded() { _state = _state | State::OCCLUDED; }
+        inline std::chrono::system_clock::time_point get_stamp() const { return _latest_time; }
+
+        inline void mark_occluded(std::chrono::system_clock::time_point timestamp)
+        { 
+            _state = _state | State::OCCLUDED;
+            _latest_time = timestamp;
+        }
 
         inline bool is_classified() const { return _state != State::UNKNOWN; }
 
@@ -111,7 +115,7 @@ namespace seddom
 
     private:
         ClassVector ms;
-        State _state;
+        State _state; // TODO: separate occlusion from norm state, occlusion can be still a problem if we see something through a hole?
         std::chrono::system_clock::time_point _latest_time;  // time of last state update
     };
 

@@ -51,13 +51,13 @@ namespace seddom
                 {
                     default:
                     case OctomapVisualizeMode::HEIGHT:
-                        msg->markers[i].ns = "octomap/height";
+                        msg->markers[i].ns = "octomap/height" + std::to_string(i);
                         break;
                     case OctomapVisualizeMode::SEMANTICS:
-                        msg->markers[i].ns = "octomap/semantics";
+                        msg->markers[i].ns = "octomap/semantics" + std::to_string(i);
                         break;
                     case OctomapVisualizeMode::VARIANCE:
-                        msg->markers[i].ns = "octomap/variance";
+                        msg->markers[i].ns = "octomap/variance" + std::to_string(i);
                         break;
                 }
                 msg->markers[i].id = i;
@@ -66,6 +66,16 @@ namespace seddom
                 msg->markers[i].scale.y = map.resolution() * pow(2, BlockDepth - 1 - i);
                 msg->markers[i].scale.z = map.resolution() * pow(2, BlockDepth - 1 - i);
             }
+
+            // initialize marker for the occluded blocks
+            msg->markers.emplace_back();
+            msg->markers[BlockDepth].header.frame_id = _frame_id;
+            msg->markers[BlockDepth].header.stamp = ts;
+            msg->markers[BlockDepth].type = visualization_msgs::Marker::SPHERE_LIST;
+            msg->markers[BlockDepth].scale.x = map.resolution() * 0.8;
+            msg->markers[BlockDepth].scale.y = map.resolution() * 0.8;
+            msg->markers[BlockDepth].scale.z = map.resolution() * 0.8;
+            msg->markers[BlockDepth].ns = "octomap/occluded";
 
             // calculate scale
             float min_v = std::numeric_limits<float>::max(), max_v = std::numeric_limits<float>::min();
@@ -91,9 +101,9 @@ namespace seddom
             // fill blocks
             for (auto it = map.cbegin_leaf(); it != map.cend_leaf(); ++it)
             {
+                pcl::PointXYZ p = it.get_loc();
                 if (it->get_state() == seddom::State::OCCUPIED)
                 {
-                    pcl::PointXYZ p = it.get_loc();
                     switch (Mode)
                     {
                     default:
@@ -108,9 +118,23 @@ namespace seddom
                         break;
                     }
                 }
-                else if (it->get_state() == seddom::State::OCCLUDED)
+                else if ((it->get_state() & seddom::State::OCCLUDED) != seddom::State::UNKNOWN)
                 {
-                    // TODO: use unified color for OCCLUDED blocks (grey?)
+                    geometry_msgs::Point center;
+                    center.x = p.x;
+                    center.y = p.y;
+                    center.z = p.z;
+
+                    std_msgs::ColorRGBA color; // calculate color from time history
+                    const float max_hist = 5000; // 5 seconds
+                    std::chrono::milliseconds history = std::chrono::duration_cast<std::chrono::milliseconds>(map.get_stamp() - it->get_stamp());
+                    color.r = 0.5;
+                    color.g = 0.5;
+                    color.b = 0.5;
+                    color.a = interpolate(history.count(), 1, 0, 0.2, max_hist);
+
+                    msg->markers[BlockDepth].points.push_back(center);
+                    msg->markers[BlockDepth].colors.push_back(color);
                 }
             }
 

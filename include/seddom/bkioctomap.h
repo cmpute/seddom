@@ -248,6 +248,15 @@ namespace seddom
 
         std::string summary() const;
 
+        // BlockSet::iterator occluded_begin() { return _occluded_blocks.begin(); }
+        // BlockSet::iterator occluded_end() { return _occluded_blocks.end(); }
+        // BlockSet::const_iterator occluded_cbegin() { return _occluded_blocks.cbegin(); }
+        // BlockSet::const_iterator occluded_cend() { return _occluded_blocks.cend(); }
+        // size_t occluded_count() const { return _occluded_blocks.size(); }
+        std::vector<BlockHashKey> get_occluded_blocks() const { return std::vector<BlockHashKey>(_occluded_blocks.cbegin(), _occluded_blocks.cend()); }
+
+        std::chrono::system_clock::time_point get_stamp() const { return _latest_time; }
+
     private:
         template <KernelType KType>
         void inference_points(const PointCloudXYZL::Ptr training_data);
@@ -285,7 +294,7 @@ namespace seddom
         float _ell; // length-scale
 
         BlockMap _blocks;
-        BlockSet _occluded_blocks; // this set only stores occluded blocks that are not present in _blocks
+        BlockSet _occluded_blocks; // this set only stores occluded blocks that are not present in _blocks, and it's only effective for one frame
                                    // TODO: add flag to ignore these addtional occluded blocks
         ChunkSet _chunks;
 

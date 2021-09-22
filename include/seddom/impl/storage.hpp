@@ -324,6 +324,26 @@ namespace seddom
         #endif
     }
 
+    template <typename SemanticClass, size_t BlockDepth>
+    void OctomapStorage::dump_all(SemanticBKIOctoMap<SemanticClass, BlockDepth> &map)
+    {
+        PROFILE_FUNCTION;
+
+        PROFILE_BLOCK("Check table existence");
+        std::string table_name = check_table(map);
+
+        // dump all chunks
+        PROFILE_SPLIT("Dump chunks");
+        assert_ok(sqlite3_exec(_db, "BEGIN TRANSACTION;", NULL, NULL, NULL));
+        for (ChunkHashKey ckey : map._chunks)
+        {
+            if (_tracked_chunks.find(ckey) == _tracked_chunks.end())
+                continue;
+            dump_chunk(map, ckey, table_name);
+        }
+        assert_ok(sqlite3_exec(_db, "END TRANSACTION;", NULL, NULL, NULL));
+    }
+
     int OctomapStorage::get_size() const
     {
         sqlite3_stmt *stmt; int ec;

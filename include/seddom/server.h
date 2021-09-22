@@ -77,7 +77,10 @@ namespace seddom
             if (!map_path.empty())
             {
                 _storage = std::make_unique<seddom::OctomapStorage>(map_path, /* active_range */ 100);
-                ROS_INFO_STREAM("Params compatible: " << _storage->check_params(*_map) << std::endl);
+                if (_storage->check_params(*_map))
+                    ROS_INFO_STREAM("Database params are compatible.");
+                else
+                    ROS_ERROR_STREAM("Database params are incompatible!");
             }
         }
 
@@ -176,6 +179,8 @@ namespace seddom
 
                     run_point_cloud(pcl_cloud, origin);
                     ros::spinOnce();
+                    if (!ros::ok())
+                        break;
                 }
             }
 
@@ -200,6 +205,15 @@ namespace seddom
                 _vis_pub->publish_octomap<SemanticClass, BlockDepth, OctomapVisualizeMode::SEMANTICS>(*_map);
             if (_storage != nullptr)
                 _storage->sync(*_map);
+        }
+
+        ~SemanticOccupancyMapServer()
+        {
+            if (_storage != nullptr)
+            {
+                std::cout << "Save all map blocks..." << std::endl;
+                _storage->dump_all(*_map);
+            }
         }
 
     protected:
