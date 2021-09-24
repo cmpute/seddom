@@ -14,9 +14,11 @@
 #include <thread>
 #include <deque>
 
-#include "bkioctomap.h"
-#include "visualizer.h"
-#include "storage.h"
+#include "seddom/bkioctomap.h"
+#include "seddom/visualizer.h"
+#include "seddom/storage.h"
+#include "seddom/visualizer.h"
+#include "seddom/gridmap.h"
 #include "seddom/DumpMap.h"
 
 namespace seddom
@@ -29,7 +31,8 @@ namespace seddom
 
         SemanticOccupancyMapServer(ros::NodeHandle &nh, ros::NodeHandle &nh_private) : _nh(nh), _nh_private(nh_private), _listener(_tfbuffer)
         {
-            std::string output_topic("/octomap");
+            std::string visualize_topic("");
+            std::string gridmap_topic("");
             std::string map_path("");
 
             bool occlusion_aware = true;
@@ -41,7 +44,8 @@ namespace seddom
             float max_range = -1;
 
             nh_private.param<std::string>("cloud_topic", _cloud_topic, _cloud_topic);
-            nh_private.param<std::string>("output_topic", output_topic, output_topic);
+            nh_private.param<std::string>("visualize_topic", visualize_topic, visualize_topic);
+            nh_private.param<std::string>("gridmap_topic", gridmap_topic, gridmap_topic);
             nh_private.param<std::string>("map_frame_id", _map_frame_id, _map_frame_id);
             nh_private.param<std::string>("map_path", map_path, map_path);
 
@@ -54,13 +58,14 @@ namespace seddom
             nh_private.param<float>("max_range", max_range, max_range);
             nh_private.param<float>("free_resolution", _free_resolution, _free_resolution);
             nh_private.param<float>("ds_resolution", _ds_resolution, _ds_resolution);
-            nh_private.param<bool>("visualize", _visualize, _visualize);
             nh_private.param<int>("random_samples_per_beam", _samples_per_beam, _samples_per_beam);
 
             _map = std::make_shared<MapType>(occlusion_aware, resolution, chunk_depth, sf2, ell, prior, max_range);
             _cloud_sub = _nh.subscribe(_cloud_topic, 4, &SemanticOccupancyMapServer::cloud_callback, this);
-            if (_visualize)
-                _vis_pub = std::make_unique<seddom::OctomapVisualizer>(nh, output_topic, _map_frame_id);
+            if (!visualize_topic.empty())
+                _visualizer = std::make_unique<seddom::OctomapVisualizer>(nh, visualize_topic, _map_frame_id);
+            if (!gridmap_topic.empty())
+                _gmap_generator = std::make_unique<seddom::GridMapGenerator>(nh, gridmap_topic, "/odom", 50); // TODO: select correct frame_id for the generated gridmap
             _dump_service = nh_private.advertiseService("dump_map", &SemanticOccupancyMapServer::dump_map_callback, this);
 
             ROS_INFO_STREAM("Parameters:" << std::endl
@@ -201,8 +206,10 @@ namespace seddom
             ros::Time tend = ros::Time::now();
             ROS_INFO("Inserted point cloud with %d points, takes %.2f ms", (int)pcl_cloud->size(), (tend - tstart).toSec() * 1000);
 
-            if (_visualize)
-                _vis_pub->publish_octomap<SemanticClass, BlockDepth, OctomapVisualizeMode::SEMANTICS>(*_map);
+            if (_gmap_generator != nullptr)
+                _gmap_generator->publish_octomap<SemanticClass, BlockDepth>(*_map);
+            if (_visualizer != nullptr)
+                _visualizer->publish_octomap<SemanticClass, BlockDepth, OctomapVisualizeMode::SEMANTICS>(*_map);
             if (_storage != nullptr)
                 _storage->sync(*_map);
         }
@@ -226,8 +233,9 @@ namespace seddom
         ros::Subscriber _cloud_sub;
         ros::ServiceServer _dump_service;
         std::string _cloud_topic = "/semantic_points";
-        std::unique_ptr<seddom::OctomapVisualizer> _vis_pub;
+        std::unique_ptr<seddom::OctomapVisualizer> _visualizer;
         std::unique_ptr<seddom::OctomapStorage> _storage;
+        std::unique_ptr<seddom::GridMapGenerator> _gmap_generator;
 
         std::string _map_frame_id = "odom";
         int _samples_per_beam = -1;

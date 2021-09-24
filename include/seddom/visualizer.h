@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
-#include "semantics.h"
+#include "seddom/semantics.h"
 
 namespace seddom
 {
