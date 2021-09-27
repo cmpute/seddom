@@ -55,7 +55,7 @@ option(WITH_FASTMATH "Build with fast math optimization" ON)
 if(WITH_FASTMATH)
     CHECK_CXX_COMPILER_FLAG("-ffast-math" COMPILER_SUPPORTS_FASTMATH)
     if(COMPILER_SUPPORTS_FASTMATH)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffast-math -fno-finite-math-only") # NAN is used in grid_map package
     endif()
     add_definitions(-DEIGEN_FAST_MATH=1)
 else()

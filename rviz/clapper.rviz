@@ -6,11 +6,8 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /PointCloud21
         - /PointCloud21/Autocompute Value Bounds1
-        - /MarkerArray1
-        - /MarkerArray1/Status1
-        - /Axes1
+        - /GridMap1
       Splitter Ratio: 0.3723723590373993
     Tree Height: 759
   - Class: rviz/Selection
@@ -31,7 +28,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2
+    SyncSource: ""
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -69,7 +66,7 @@ Visualization Manager:
       Color: 0; 0; 0
       Color Transformer: AxisColor
       Decay Time: 0.10000000149011612
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Min Color: 0; 0; 0
@@ -84,15 +81,15 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: false
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /octomap
       Name: MarkerArray
       Namespaces:
-        octomap/semantics: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Alpha: 1
       Class: rviz/Axes
       Enabled: true
@@ -100,6 +97,27 @@ Visualization Manager:
       Name: Axes
       Radius: 0.4000000059604645
       Reference Frame: <Fixed Frame>
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Class: grid_map_rviz_plugin/GridMap
+      Color: 200; 200; 200
+      Color Layer: elevation
+      Color Transformer: GridMapLayer
+      Enabled: true
+      Height Layer: elevation
+      Height Transformer: GridMapLayer
+      History Length: 1
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 10
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: GridMap
+      Show Grid Lines: true
+      Topic: /grid_map
+      Unreliable: false
+      Use Rainbow: true
       Value: true
   Enabled: true
   Global Options:
@@ -137,17 +155,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 12.7990140914917
-        Y: -27.87293815612793
-        Z: -27.361391067504883
+        X: 49.27197265625
+        Y: -5.890010356903076
+        Z: -36.259765625
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8003982305526733
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
-      Yaw: 1.3003976345062256
+      Yaw: 1.5653973817825317
     Saved: ~
 Window Geometry:
   Displays:

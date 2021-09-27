@@ -10,17 +10,19 @@
 
 namespace seddom
 {
-    const std::string GROUND_ELEVATION_LAYER = "elevation";
-    const std::string GROUND_SEMANTIC_LAYER = "ground_semantic";
-    const std::string CEILING_ELEVATION_LAYER = "ceiling_elevation";
-    const std::string CEILING_SEMANTIC_LAYER = "ceiling_semantic";
-    const std::string OCCLUTION_STATUS_LAYER = "occlusion_status";
+    const std::string LAYER_GROUND_ELEVATION = "elevation";
+    const std::string LAYER_GROUND_SEMANTIC = "semantic";
+    const std::string LAYER_CEILING_HEIGHT = "ceiling_height";
+    const std::string LAYER_CEILING_SEMANTIC = "ceiling_semantic";
+    const std::string LAYER_OCCLUDED_HEIGHT = "occluded_height";
+    const std::string LAYER_GRID_STATUS = "status";
 
-    const float OCCSTAT_UNKNOWN = NAN;
-    const float OCCSTAT_FREE = 0.;
-    const float OCCSTAT_OCCUPIED = 1.;
-    const float OCCSTAT_OCCLUDED = -1.;
+    const float STATUS_UNKNOWN = NAN;
+    const float STATUS_BLOCKED = 1.;
+    const float STATUS_FREE = 0.;
+    const float STATUS_OCCLUDED = -1.;
 
+    // TODO: also calculate occlusion for dynamic objects, maybe a separate node tracking objects and generating occluded area based on detections?
     class HeightMapGenerator
     {
     public:
@@ -28,74 +30,93 @@ namespace seddom
             ros::NodeHandle nh,
             std::string topic,
             std::string frame_id,
-            float map_size // the size of the generated grid map in meters.
-                           // The grid map will be centered at the position of query and expand in each direction by map_size/2
-            ) : _topic(topic), _frame_id(frame_id), _map_size(map_size)
+            float map_size, // the size of the generated grid map in meters.
+                            // The grid map will be centered at the position of query and expand in each direction by map_size/2
+            float map_resolution
+            ) : _topic(topic),
+                _resolution(map_resolution),
+                _zmap({LAYER_GROUND_ELEVATION, LAYER_GROUND_SEMANTIC, LAYER_CEILING_HEIGHT, LAYER_CEILING_SEMANTIC, LAYER_OCCLUDED_HEIGHT, LAYER_GRID_STATUS})
         {
             _pub = nh.advertise<grid_map_msgs::GridMap>(topic, 1, true);
+            _zmap.setFrameId(frame_id);
+            _zmap.setGeometry(
+                grid_map::Length(map_size, map_size),
+                map_resolution * 1.05
+            );
         }
         
         template <typename SemanticClass, size_t BlockDepth>
-        void publish_octomap(const SemanticBKIOctoMap<SemanticClass, BlockDepth>& map) const
+        void publish_octomap(const SemanticBKIOctoMap<SemanticClass, BlockDepth>& map)
         {
             pcl::PointXYZ latest_pos = map.get_position();
-            grid_map::GridMap gmap({GROUND_ELEVATION_LAYER, GROUND_SEMANTIC_LAYER, CEILING_ELEVATION_LAYER, CEILING_SEMANTIC_LAYER, OCCLUTION_STATUS_LAYER});
-            gmap.setFrameId(_frame_id);
-            gmap.setGeometry(
-                grid_map::Length(_map_size, _map_size),
-                map.resolution(),
-                grid_map::Position(latest_pos.x, latest_pos.y)
-            );
+            _zmap.move(grid_map::Position(latest_pos.x, latest_pos.y));
+            _zmap[LAYER_OCCLUDED_HEIGHT].setConstant(NAN); // reset occlusion height every time
 
             for (auto nit = map.cbegin_leaf(); nit != map.cend_leaf(); nit ++)
             {
-                if ((nit->get_state() & State::OCCUPIED) == State::FREE)
-                    continue;
-
                 pcl::PointXYZ loc = nit.get_loc();
                 grid_map::Position position(loc.x, loc.y);
-                if (!gmap.isInside(position)) // skip blocks not in ROI
+                if (!_zmap.isInside(position)) // skip blocks not in ROI
                     continue;
 
                 if (nit->is_occupied())
-                    if (loc.z < latest_pos.z)
+                    if (loc.z < (latest_pos.z + _resolution)) // consider one more block
                     {
-                        float old_value = gmap.atPosition(GROUND_ELEVATION_LAYER, position);
+                        // update ground height if the block is lower than sensor height
+                        float old_value = _zmap.atPosition(LAYER_GROUND_ELEVATION, position);
                         if (std::isnan(old_value) || loc.z > old_value)
                         {
-                            gmap.atPosition(GROUND_ELEVATION_LAYER, position) = loc.z;
-                            gmap.atPosition(GROUND_SEMANTIC_LAYER, position) = nit->get_semantics();
+                            _zmap.atPosition(LAYER_GROUND_ELEVATION, position) = loc.z;
+                            _zmap.atPosition(LAYER_GROUND_SEMANTIC, position) = nit->get_semantics();
                         }
+
+                        // occluded height is at least ground height
+                        float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position);
+                        if (std::isnan(old_occ) || loc.z > old_occ)
+                            _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position) = loc.z;
                     }
-                    else // loc.z >= latest_pos.z
+                    if (loc.z > (latest_pos.z - _resolution))
                     {
-                        float old_value = gmap.atPosition(CEILING_ELEVATION_LAYER, position);
+                        // update ceiling height if the block is higher than sensor height
+                        float old_value = _zmap.atPosition(LAYER_CEILING_HEIGHT, position);
                         if (std::isnan(old_value) || loc.z < old_value)
                         {
-                            gmap.atPosition(CEILING_ELEVATION_LAYER, position) = loc.z;
-                            gmap.atPosition(CEILING_SEMANTIC_LAYER, position) = nit->get_semantics();
+                            _zmap.atPosition(LAYER_CEILING_HEIGHT, position) = loc.z;
+                            _zmap.atPosition(LAYER_CEILING_SEMANTIC, position) = nit->get_semantics();
                         }
                     }
 
-                if (nit->is_classified())
+                if (nit->is_classified() && nit->is_occluded())
                 {
-                    if (nit->is_occluded())
-                        gmap.atPosition(OCCLUTION_STATUS_LAYER, position) = OCCSTAT_OCCLUDED;
-                    else
-                        gmap.atPosition(OCCLUTION_STATUS_LAYER, position) = nit->is_occupied() ? OCCSTAT_OCCUPIED : OCCSTAT_FREE;
+                    float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position);
+                    if (std::isnan(old_occ) || loc.z > old_occ)
+                        _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position) = loc.z;
                 }
-                // else the gridmap will be initialized as unknown, which is the expected value.
             }
 
-            gmap.setTimestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(map.get_stamp().time_since_epoch()).count());
-            grid_map_msgs::GridMap gmap_msg;
-            grid_map::GridMapRosConverter::toMessage(gmap, gmap_msg);
-            _pub.publish(gmap_msg);
+            for (grid_map::GridMapIterator git(_zmap); !git.isPastEnd(); ++git)
+            {
+                float gheight = _zmap.at(LAYER_GROUND_ELEVATION, *git);
+                if (std::isnan(gheight))
+                    continue;
+
+                if (gheight > latest_pos.z)
+                    _zmap.at(LAYER_GRID_STATUS, *git) = STATUS_BLOCKED;
+                else if (_zmap.at(LAYER_OCCLUDED_HEIGHT, *git) > gheight)
+                    _zmap.at(LAYER_GRID_STATUS, *git) = STATUS_OCCLUDED;
+                else // occlusion height < ground height < sensor height
+                    _zmap.at(LAYER_GRID_STATUS, *git) = STATUS_FREE;
+            }
+
+            _zmap.setTimestamp(ros::Time::now().toNSec());
+            grid_map_msgs::GridMap zmap_msg;
+            grid_map::GridMapRosConverter::toMessage(_zmap, zmap_msg);
+            _pub.publish(zmap_msg);
         }
     private:
         std::string _topic;
-        std::string _frame_id;
-        float _map_size;
+        float _resolution;
         ros::Publisher _pub;
+        grid_map::GridMap _zmap;
     };
 }

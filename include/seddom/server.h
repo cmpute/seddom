@@ -65,7 +65,7 @@ namespace seddom
             if (!visualize_topic.empty())
                 _visualizer = std::make_unique<seddom::OctomapVisualizer>(nh, visualize_topic, _map_frame_id);
             if (!gridmap_topic.empty())
-                _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, "odom", 50); // TODO: select correct frame_id for the generated gridmap
+                _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, "odom", 50, _map->resolution()); // TODO: select correct frame_id for the generated gridmap
             _dump_service = nh_private.advertiseService("dump_map", &SemanticOccupancyMapServer::dump_map_callback, this);
 
             ROS_INFO_STREAM("Parameters:" << std::endl
