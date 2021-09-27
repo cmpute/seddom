@@ -9,16 +9,14 @@
 
 namespace seddom
 {
-    /// Occupancy states
+    /// Occupancy grid states
     enum class State : char
     {
         // states
         UNKNOWN    = 0b0000,
-        FREE       = 0b0010,
-        OCCUPIED   = 0b0011,
-
-        // state source, by default (0b0000) is from lidar hit
-        OCCLUDED   = 0b0100,
+        FREE       = 0b0010, // classified
+        OCCUPIED   = 0b0011, // classified
+        OCCLUDED   = 0b0100, // occlusion flag
         PRUNED     = 0b1000, // not used
     };
 
@@ -28,11 +26,16 @@ namespace seddom
     enum class SaveFormat : char
     {
         FULL,
-        LABEL_WITH_DUAL_VAR,
-        LABEL_WITH_VAR,
-        LABEL
+        LABEL_WITH_DUAL_VAR, // semantic value with confidence score of free and highest category
+        LABEL_WITH_VAR, // semantic value with confidence of highest category
+        LABEL // semantic value only
+    };
 
-        // TODO: add option for skip free and unknown blocks
+    enum class SaveOptions : char
+    {
+        ALL_BLOCKS, // by default all blocks will be saved
+        SKIP_FREE, // don't save free blocks
+        SKIP_FREE_UNKNOWN // don't save free and unknown blocks (no distinct class?)
     };
 
     /*
@@ -50,20 +53,21 @@ namespace seddom
 
         static float prior; // prior on each class
         static SaveFormat save_format;
+        static SaveOptions save_options;
 
         /*
          * @brief Constructors and destructor.
          */
-        Semantics() : ms(), _state(State::UNKNOWN)
+        Semantics() : logits(), _state(State::UNKNOWN)
         {
-            ms.setConstant(prior);
+            logits.setConstant(prior);
         }
 
-        Semantics(const Semantics &other) : ms(other.ms), _state(other._state) {}
+        Semantics(const Semantics &other) : logits(other.logits), _state(other._state) {}
 
         Semantics &operator=(const Semantics &other)
         {
-            ms = other.ms;
+            logits = other.logits;
             _state = other._state;
             return *this;
         }
@@ -105,7 +109,9 @@ namespace seddom
             _latest_time = timestamp;
         }
 
-        inline bool is_classified() const { return _state != State::UNKNOWN; }
+        inline bool is_occluded() const { return (_state & State::OCCLUDED) != State::UNKNOWN; }
+        inline bool is_classified() const { return (_state & (State)0b0010) != State::UNKNOWN; }
+        inline bool is_occupied() const { return (_state & (State)0b0011) == State::OCCUPIED; }
 
         size_t get_semantics() const;
 
@@ -114,7 +120,7 @@ namespace seddom
         void msgpack_unpack(msgpack::object const& o);
 
     private:
-        ClassVector ms;
+        ClassVector logits;
         State _state; // TODO: separate occlusion from norm state, occlusion can be still a problem if we see something through a hole?
         std::chrono::system_clock::time_point _latest_time;  // time of last state update
     };

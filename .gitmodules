@@ -7,3 +7,6 @@
 [submodule "thirdparty/morton"]
 	path = thirdparty/morton
 	url = https://github.com/kevinhartman/morton-nd.git
+[submodule "thirdparty/backward-cpp"]
+	path = thirdparty/backward-cpp
+	url = https://github.com/bombela/backward-cpp.git

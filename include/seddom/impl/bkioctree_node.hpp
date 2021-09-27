@@ -14,18 +14,21 @@ namespace seddom
     SaveFormat Semantics<NumClass>::save_format = SaveFormat::LABEL_WITH_DUAL_VAR;
 
     template <size_t NumClass>
+    SaveOptions Semantics<NumClass>::save_options = SaveOptions::ALL_BLOCKS;
+
+    template <size_t NumClass>
     typename Semantics<NumClass>::ClassVector
     Semantics<NumClass>::get_probs() const
     {
-        return ms.normalized();
+        return logits.normalized();
     }
 
     template <size_t NumClass>
     typename Semantics<NumClass>::ClassVector
     Semantics<NumClass>::get_vars() const
     {
-        float sum = ms.sum();
-        auto probs = ms.array() / sum;
+        float sum = logits.sum();
+        auto probs = logits.array() / sum;
         return (probs.array() - probs.array().square()) / (sum + 1);
     }
 
@@ -35,8 +38,8 @@ namespace seddom
         if (ybars.sum() < 1e-5)
             return false; // skip if the impact is too small
 
-        ms += ybars;
-        _state = get_semantics() == 0 ? State::FREE : State::OCCUPIED; // removed state source flags
+        logits += ybars;
+        _state = (get_semantics() == 0) ? State::FREE : State::OCCUPIED; // removed state source flags
         _latest_time = timestamp;
         return true;
     }
@@ -47,8 +50,8 @@ namespace seddom
         if (ybar < 1e-5)
             return false; // skip if the impact is too small
 
-        ms[0] += ybar;
-        _state = get_semantics() == 0 ? State::FREE : State::OCCUPIED; // removed state source flags
+        logits[0] += ybar;
+        _state = (get_semantics() == 0) ? State::FREE : State::OCCUPIED; // removed state source flags
         _latest_time = timestamp;
         return true;
     }
@@ -57,34 +60,72 @@ namespace seddom
     size_t Semantics<NumClass>::get_semantics() const
     {
         typename ClassVector::Index imax;
-        ms.maxCoeff(&imax);
+        logits.maxCoeff(&imax);
         return imax;
     }
+
+    /********************
+     *   Serialization  *
+     ********************
+     * Note that cross-platform endianness compatibility is not guaranteed.
+     * If this is required, boost.endian library can be used to make the following code compatible.
+     */
+
+    struct DLabelWithDualVar
+    {
+        char state;
+        uint32_t timestamp;
+        char semantics;
+        float logit_total, logit_free, logit_semantics;
+    };
+
+    struct DLabelWithVar
+    {
+        char state;
+        uint32_t timestamp;
+        char semantics;
+        float logit_total, logit_semantics;
+    };
+
+    struct DLabel
+    {
+        char state;
+        uint32_t timestamp;
+        char semantics;
+    };
 
     template <size_t NumClass>
     template <typename Packer>
     void Semantics<NumClass>::msgpack_pack(Packer &pk) const
     {
-        if (_state == State::UNKNOWN)
+        if ((_state & (State)0b0001) == State::UNKNOWN)
         {
             pk.pack_nil();
             return;
         }
-        union { float f; uint32_t i; } mem;
+
+        char state = (char)_state & 0b0011; // only store occupying status
+        uint32_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(_latest_time.time_since_epoch()).count();
+
         switch(save_format)
         {
             case SaveFormat::FULL:
             {
-                const size_t l = NumClass * sizeof(float) + 1;
-                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::FULL);
+                const size_t l = 1 // state
+                               + 4 // timestamp
+                               + NumClass * sizeof(float); // logits
+                pk.pack_ext(l, (char)SaveFormat::FULL);
 
-                char buf[l];
-                buf[0] = (char)_state;
-                char *ptr = buf + 1;
+                char buf[l]; char *ptr = buf;
+                *ptr++ = state;
+                memcpy(ptr, &timestamp, sizeof(uint32_t));
+                ptr += sizeof(uint32_t);
+
+                union { float f; uint32_t i; } mem;
                 for (int i = 0; i < NumClass; i++)
                 {
-                    mem.f = ms(i) - prior;
-                    _msgpack_store32(ptr, mem.i);
+                    float v = logits(i) - prior;
+                    memcpy(ptr, &v, sizeof(float));
                     ptr += sizeof(float);
                 }
                 pk.pack_ext_body(buf, l);
@@ -94,46 +135,42 @@ namespace seddom
             {
                 if (_state == State::FREE)
                     goto CASE_LABEL_WITH_VAR;
-                const size_t l = 3 * sizeof(float) + 2;
-                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_DUAL_VAR);
 
-                char buf[l];
-                buf[0] = (char)_state;
-                buf[1] = get_semantics();
-                mem.f = ms.sum() - prior * NumClass;
-                _msgpack_store32(buf+2, mem.i);
-                mem.f = ms[0] - prior;
-                _msgpack_store32(buf+2+sizeof(float), mem.i);
-                mem.f = ms[buf[1]] - prior;
-                _msgpack_store32(buf+2+2*sizeof(float), mem.i);
-                pk.pack_ext_body(buf, l);
+                DLabelWithDualVar data;
+                data.state = state;
+                data.timestamp = timestamp;
+                data.semantics = get_semantics();
+                data.logit_total = logits.sum() - prior * NumClass;
+                data.logit_free = logits[0] - prior;
+                data.logit_semantics = logits[data.semantics] - prior;
+
+                pk.pack_ext(sizeof(DLabelWithDualVar), (char)SaveFormat::LABEL_WITH_DUAL_VAR);
+                pk.pack_ext_body(reinterpret_cast<char*>(&data), sizeof(DLabelWithDualVar));
                 break;
             }
             CASE_LABEL_WITH_VAR:
             case SaveFormat::LABEL_WITH_VAR:
             {
-                const size_t l = 2 * sizeof(float) + 2;
-                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_VAR);
+                DLabelWithVar data;
+                data.state = state;
+                data.timestamp = timestamp;
+                data.semantics = get_semantics();
+                data.logit_total = logits.sum() - prior * NumClass;
+                data.logit_semantics = logits[data.semantics] - prior;
 
-                char buf[l];
-                buf[0] = (char)_state;
-                buf[1] = get_semantics();
-                mem.f = ms.sum() - prior * NumClass;
-                _msgpack_store32(buf+2, mem.i);
-                mem.f = ms[buf[1]] - prior;
-                _msgpack_store32(buf+2+sizeof(float), mem.i);
-                pk.pack_ext_body(buf, l);
+                pk.pack_ext(sizeof(DLabelWithVar), (char)SaveFormat::LABEL_WITH_VAR);
+                pk.pack_ext_body(reinterpret_cast<char*>(&data), sizeof(DLabelWithVar));
                 break;
             }
             case SaveFormat::LABEL:
             {
-                const size_t l = 2;
-                pk.pack_ext(l, SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL);
+                DLabel data;
+                data.state = state;
+                data.timestamp = timestamp;
+                data.semantics = get_semantics();
 
-                char buf[l];
-                buf[0] = (char)_state;
-                buf[1] = get_semantics();
-                pk.pack_ext_body(buf, l);
+                pk.pack_ext(sizeof(DLabel), (char)SaveFormat::LABEL);
+                pk.pack_ext_body(reinterpret_cast<char*>(&data), sizeof(DLabel));
                 break;
             }
         }
@@ -146,73 +183,61 @@ namespace seddom
             return;
         assert(o.type == msgpack::type::EXT);
 
-        union { float f; uint32_t i; } mem;
+        uint32_t timestamp;
         const char *ptr = o.via.ext.data();
         switch(o.via.ext.type())
         {
-            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::FULL:
+            case (char)SaveFormat::FULL:
             {
+                union { float f; uint32_t i; } mem;
                 _state = (State)*ptr++;
+                timestamp = *reinterpret_cast<const float*>(ptr);
+                ptr += sizeof(float);
+
                 for (int i = 0; i < NumClass; i++)
                 {
-                    _msgpack_load32(uint32_t, ptr, &mem.i);
-                    ms[i] += mem.f;
+                    logits[i] += *reinterpret_cast<const float*>(ptr);
                     ptr += sizeof(float);
                 }
                 break;
             }
-            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_DUAL_VAR:
+            case (char)SaveFormat::LABEL_WITH_DUAL_VAR:
             {
-                _state = (State)*ptr++;
-                char semantics = *ptr++;
-
-                _msgpack_load32(uint32_t, ptr, &mem.i);
-                float sum = mem.f;
-                ptr += sizeof(float);
-
-                _msgpack_load32(uint32_t, ptr, &mem.i);
-                float prob_free = mem.f;
-                ptr += sizeof(float);
-
-                _msgpack_load32(uint32_t, ptr, &mem.i);
-                float prob_sem = mem.f;
-
-                ms[0] += prob_free;
-                ms[semantics] += prob_sem;
-                float prob_others = (sum - prob_free - prob_sem) / (NumClass - 2);
+                const DLabelWithDualVar *data = reinterpret_cast<const DLabelWithDualVar*>(ptr);
+                _state = (State)data->state;
+                timestamp = data->timestamp;
+                logits[0] += data->logit_free;
+                logits[data->semantics] += data->logit_semantics;
+                float logit_others = (data->logit_total - data->logit_free - data->logit_semantics) / (NumClass - 2);
                 for (int i = 1; i < NumClass; i++)
-                    if (i != semantics)
-                        ms[i] += prob_others;
+                    if (i != data->semantics)
+                        logits[i] += logit_others;
                 break;
             }
-            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL_WITH_VAR:
+            case (char)SaveFormat::LABEL_WITH_VAR:
             {
-                _state = (State)*ptr++;
-                char semantics = *ptr++;
-
-                _msgpack_load32(uint32_t, ptr, &mem.i);
-                float sum = mem.f;
-                ptr += sizeof(float);
-
-                _msgpack_load32(uint32_t, ptr, &mem.i);
-                float prob_sem = mem.f;
-
-                ms[semantics] += prob_sem;
-                float prob_others = (sum - prob_sem) / (NumClass - 1);
+                const DLabelWithVar *data = reinterpret_cast<const DLabelWithVar*>(ptr);
+                _state = (State)data->state;
+                timestamp = data->timestamp;
+                logits[data->semantics] += data->logit_semantics;
+                float logit_others = (data->logit_total - data->logit_semantics) / (NumClass - 1);
                 for (int i = 0; i < NumClass; i++)
-                    if (i != semantics)
-                        ms[i] += prob_others;
+                    if (i != data->semantics)
+                        logits[i] += logit_others;
                 break;
             }
-            case SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE + (char)SaveFormat::LABEL:
+            case (char)SaveFormat::LABEL:
             {
-                _state = (State)*ptr++;
-                char semantics = *ptr++;
-                ms[semantics] += prior * 10;
+                const DLabel *data = reinterpret_cast<const DLabel*>(ptr);
+                _state = (State)data->state;
+                timestamp = data->timestamp;
+                logits[data->semantics] += prior * 10;
                 break;
             }
             default:
                 throw msgpack::type_error();
         }
+
+        _latest_time = std::chrono::system_clock::time_point(std::chrono::milliseconds(timestamp));
     }
 }

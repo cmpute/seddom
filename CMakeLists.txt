@@ -98,6 +98,20 @@ if (EXPAND_PREDICTION)
     add_definitions(-DEXPAND_PREDICTION)
 endif ()
 
+option(WITH_STACKTRACE "Build with stacktrace support from backward-cpp" ON)
+if (WITH_STACKTRACE)
+    add_subdirectory(thirdparty/backward-cpp)
+    set(BACKWARD_SRC ${BACKWARD_ENABLE})
+    if (STACK_DETAILS_DW)
+        message(STATUS "Stacktrace using backward-cpp + libdw")
+    elseif (STACK_DETAILS_DWARF)
+        message(STATUS "Stacktrace using backward-cpp + libdwarf")
+    elseif(STACK_DETAILS_BACKTRACE_SYMBOL)
+        message(FATAL_ERROR "Stacktrace using backward-cpp")
+    endif()
+else()
+    set(BACKWARD_SRC)
+endif()
 
 ####################
 ## Catkin related ##
@@ -136,7 +150,7 @@ include_directories(
 #     src/semantickitti_node.cpp
 # )
 
-cs_add_executable(octomap_server src/octomap_server.cpp)
+cs_add_executable(octomap_server src/octomap_server.cpp ${BACKWARD_SRC})
 
 # target_link_libraries(kitti_node
 #   ${OpenCV_LIBRARIES}
@@ -150,3 +164,7 @@ cs_add_executable(octomap_server src/octomap_server.cpp)
 target_link_libraries(octomap_server
     ${SQLite3_LIBRARIES}
 )
+
+if (WITH_STACKTRACE)
+    add_backward(octomap_server)
+endif ()

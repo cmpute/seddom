@@ -401,7 +401,7 @@ namespace seddom
                         BlockType &block = bit->second;
                         Eigen::Matrix<float, -1, 4> points = block.get_node_locs();
                         points = points.rowwise() - v_origin.transpose();
-                        Eigen::Matrix<float, -1, -1> _; // used to select correct function
+                        Eigen::Matrix<float, -1, -1> _(lines.rows(), points.rows()); // used to select correct function
                         auto pldist = seddom::dist_pl<float, 3>(lines.leftCols(3), points.leftCols(3), _);
                         Eigen::Matrix<bool, 1, -1> validity = pldist.colwise().minCoeff().array() < _ell;
                         

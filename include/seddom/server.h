@@ -141,6 +141,9 @@ namespace seddom
             bag.open(bag_path);
             std::deque<sensor_msgs::PointCloud2Ptr> cloud_queue;
 
+            if (_storage != nullptr) // pre-load existing map
+                _storage->sync(*_map);
+
             for(rosbag::MessageInstance const m: rosbag::View(bag))
             {
                 if (m.getTopic() == _cloud_topic)

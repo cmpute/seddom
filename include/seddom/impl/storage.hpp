@@ -264,7 +264,7 @@ namespace seddom
 
         // create table if needed
         const std::string sql_create_table = "CREATE TABLE IF NOT EXISTS '" + table_name +
-                                             "' (hashkey INTEGER NOT NULL UNIQUE, last_update INTEGER NOT NULL, data BLOB, " \ 
+            "' (hashkey INTEGER NOT NULL UNIQUE, last_update INTEGER NOT NULL, data BLOB, "
             "PRIMARY KEY(hashkey) ) WITHOUT ROWID;";
         exec_sql(sql_create_table);
         return table_name;

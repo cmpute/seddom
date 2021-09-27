@@ -45,7 +45,7 @@ namespace seddom
 
             for (auto nit = map.cbegin_leaf(); nit != map.cend_leaf(); nit ++)
             {
-                if ((nit->get_state() & State::OCCUPIED) == State::FREE)
+                if ((nit->get_state() & State::OCCUPIED) == State::FREE) // TODO: how to properly represent unknown?
                     continue;
 
                 pcl::PointXYZ loc = nit.get_loc();
@@ -56,7 +56,20 @@ namespace seddom
                 if (loc.z < latest_pos.z)
                 {
                     float old_value = gmap.atPosition(GROUND_ELEVATION_LAYER, position);
-                    gmap.atPosition(GROUND_ELEVATION_LAYER, position) = std::isnan(old_value) ? loc.z : std::max(old_value, loc.z);
+                    if (std::isnan(old_value) || loc.z > old_value)
+                    {
+                        gmap.atPosition(GROUND_ELEVATION_LAYER, position) = loc.z;
+                        gmap.atPosition(GROUND_SEMANTIC_LAYER, position) = nit->get_semantics();
+                    }
+                }
+                else // loc.z >= latest_pos.z
+                {
+                    float old_value = gmap.atPosition(CEILING_ELEVATION_LAYER, position);
+                    if (std::isnan(old_value) || loc.z < old_value)
+                    {
+                        gmap.atPosition(CEILING_ELEVATION_LAYER, position) = loc.z;
+                        gmap.atPosition(CEILING_SEMANTIC_LAYER, position) = nit->get_semantics();
+                    }
                 }
             }
 

@@ -102,7 +102,7 @@ namespace seddom
             for (auto it = map.cbegin_leaf(); it != map.cend_leaf(); ++it)
             {
                 pcl::PointXYZ p = it.get_loc();
-                if (it->get_state() == seddom::State::OCCUPIED)
+                if (it->is_occupied())
                 {
                     switch (Mode)
                     {
@@ -118,7 +118,7 @@ namespace seddom
                         break;
                     }
                 }
-                else if ((it->get_state() & seddom::State::OCCLUDED) != seddom::State::UNKNOWN)
+                else if (it->is_occluded())
                 {
                     geometry_msgs::Point center;
                     center.x = p.x;

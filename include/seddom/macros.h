@@ -41,7 +41,6 @@
 constexpr double PI = 3.141592653589793238463;
 constexpr double DPI = 6.283185307179586476925;
 constexpr double SQ3 = 1.732050807568877293527;
-const int8_t SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE = 10;
 
 #include <iostream>
 #ifndef NDEBUG
