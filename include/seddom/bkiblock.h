@@ -3,8 +3,8 @@
 #include <array>
 #include <chrono>
 
-#include "bkioctree_node.h"
-#include "bkioctree.h"
+#include "seddom/bkioctree_node.h"
+#include "seddom/bkioctree.h"
 
 namespace seddom
 {

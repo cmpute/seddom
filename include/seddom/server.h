@@ -18,7 +18,7 @@
 #include "seddom/visualizer.h"
 #include "seddom/storage.h"
 #include "seddom/visualizer.h"
-#include "seddom/gridmap.h"
+#include "seddom/heightmap.h"
 #include "seddom/DumpMap.h"
 
 namespace seddom
@@ -65,7 +65,7 @@ namespace seddom
             if (!visualize_topic.empty())
                 _visualizer = std::make_unique<seddom::OctomapVisualizer>(nh, visualize_topic, _map_frame_id);
             if (!gridmap_topic.empty())
-                _gmap_generator = std::make_unique<seddom::GridMapGenerator>(nh, gridmap_topic, "/odom", 50); // TODO: select correct frame_id for the generated gridmap
+                _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, "odom", 50); // TODO: select correct frame_id for the generated gridmap
             _dump_service = nh_private.advertiseService("dump_map", &SemanticOccupancyMapServer::dump_map_callback, this);
 
             ROS_INFO_STREAM("Parameters:" << std::endl
@@ -142,7 +142,7 @@ namespace seddom
             std::deque<sensor_msgs::PointCloud2Ptr> cloud_queue;
 
             if (_storage != nullptr) // pre-load existing map
-                _storage->sync(*_map);
+                _storage->load_around(*_map, pcl::PointXYZ(0,0,0));
 
             for(rosbag::MessageInstance const m: rosbag::View(bag))
             {
@@ -209,8 +209,8 @@ namespace seddom
             ros::Time tend = ros::Time::now();
             ROS_INFO("Inserted point cloud with %d points, takes %.2f ms", (int)pcl_cloud->size(), (tend - tstart).toSec() * 1000);
 
-            if (_gmap_generator != nullptr)
-                _gmap_generator->publish_octomap<SemanticClass, BlockDepth>(*_map);
+            if (_zmap_generator != nullptr)
+                _zmap_generator->publish_octomap<SemanticClass, BlockDepth>(*_map);
             if (_visualizer != nullptr)
                 _visualizer->publish_octomap<SemanticClass, BlockDepth, OctomapVisualizeMode::SEMANTICS>(*_map);
             if (_storage != nullptr)
@@ -238,7 +238,7 @@ namespace seddom
         std::string _cloud_topic = "/semantic_points";
         std::unique_ptr<seddom::OctomapVisualizer> _visualizer;
         std::unique_ptr<seddom::OctomapStorage> _storage;
-        std::unique_ptr<seddom::GridMapGenerator> _gmap_generator;
+        std::unique_ptr<seddom::HeightMapGenerator> _zmap_generator;
 
         std::string _map_frame_id = "odom";
         int _samples_per_beam = -1;

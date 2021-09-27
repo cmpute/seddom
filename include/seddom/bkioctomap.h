@@ -9,9 +9,9 @@
 #include <pcl/point_types.h>
 #include <EigenRand/EigenRand>
 
-#include "macros.h"
-#include "bkiblock.h"
-#include "bki.h"
+#include "seddom/macros.h"
+#include "seddom/bkiblock.h"
+#include "seddom/bki.h"
 
 namespace seddom
 {

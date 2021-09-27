@@ -5,7 +5,7 @@
 #include <array>
 #include <type_traits>
 
-#include "bkioctree_node.h"
+#include "seddom/bkioctree_node.h"
 
 namespace seddom
 {

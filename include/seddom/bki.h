@@ -1,7 +1,7 @@
 #pragma once
 
-#include "macros.h"
-#include "bkioctomap.h"
+#include "seddom/macros.h"
+#include "seddom/bkioctomap.h"
 #include <array>
 
 namespace seddom
