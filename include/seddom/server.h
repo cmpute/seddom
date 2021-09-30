@@ -77,8 +77,14 @@ namespace seddom
 
             _map = std::make_shared<MapType>(oh, resolution, chunk_depth, sf2, ell, prior, max_range);
             _cloud_sub = _nh.subscribe(_cloud_topic, 4, &SemanticOccupancyMapServer::cloud_callback, this);
-            _tf_pub = _nh.advertise<tf2_msgs::TFMessage>("/tf", 1, 1); // these publisers are for broadcasting the tf messages from ros bag.
+
+            // these publisers are for messages from ros bag.
+            _tf_pub = _nh.advertise<tf2_msgs::TFMessage>("/tf", 1, 1); 
             _tf_static_pub = _nh.advertise<tf2_msgs::TFMessage>("/tf_static", 1, 1);
+#ifndef NDEBUG
+            _cloud_pub = _nh.advertise<sensor_msgs::PointCloud2>(_cloud_topic, 1, 1);
+#endif
+
             if (!visualize_topic.empty())
                 _visualizer = std::make_unique<seddom::OctomapVisualizer>(nh, visualize_topic, _map_frame_id);
             if (!gridmap_topic.empty())
@@ -191,6 +197,10 @@ namespace seddom
                 {
                     // process cloud
                     cloud_queue.pop_front();
+#ifndef NDEBUG
+                    _cloud_pub.publish(cloud);
+#endif
+
                     geometry_msgs::TransformStamped transform;
                     transform = tfbuffer.lookupTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp);
 
@@ -274,7 +284,7 @@ namespace seddom
         std::unique_ptr<seddom::OctomapVisualizer> _visualizer;
         std::unique_ptr<seddom::OctomapStorage> _storage;
         std::unique_ptr<seddom::HeightMapGenerator> _zmap_generator;
-        ros::Publisher _tf_pub, _tf_static_pub;
+        ros::Publisher _tf_pub, _tf_static_pub, _cloud_pub;
 
         std::string _map_frame_id = "odom";
         int _samples_per_beam = -1;

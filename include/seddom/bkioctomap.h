@@ -255,16 +255,9 @@ namespace seddom
 
         std::string summary() const;
 
-        // BlockSet::iterator occluded_begin() { return _occluded_blocks.begin(); }
-        // BlockSet::iterator occluded_end() { return _occluded_blocks.end(); }
-        // BlockSet::const_iterator occluded_cbegin() { return _occluded_blocks.cbegin(); }
-        // BlockSet::const_iterator occluded_cend() { return _occluded_blocks.cend(); }
-        // size_t occluded_count() const { return _occluded_blocks.size(); }
         std::vector<BlockHashKey> get_occluded_blocks() const { return std::vector<BlockHashKey>(_occluded_blocks.cbegin(), _occluded_blocks.cend()); }
-
         // get the latest timestamp of the data
         std::chrono::system_clock::time_point get_stamp() const { return _latest_time; }
-
         // get the latest position of the sensor
         pcl::PointXYZ get_position() const { return _latest_position; }
 

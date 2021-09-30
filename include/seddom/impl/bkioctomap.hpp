@@ -320,7 +320,7 @@ namespace seddom
         typedef bgi::rtree<srtree_value_t, srtree_params_t> srtree_t; // rtree in spherical coordinate
 
         std::vector<srtree_value_t> projections;
-        projections.reserve(sampled_hits->size());
+        projections.reserve(sampled_hits->size()); // TODO: use the original point cloud instead of downsampled for accurate occlusion estimation
         const Eigen::Vector4f v_origin = origin.getVector4fMap();
         Eigen::Matrix<float, 4, -1> ptarray = sampled_hits->getMatrixXfMap().topRows(4).colwise() - v_origin; // point cloud relative to origin
         for (size_t i = 0; i < sampled_hits->size(); i++)
@@ -404,14 +404,21 @@ namespace seddom
                         BlockType &block = bit->second;
                         Eigen::Matrix<float, -1, 4> points = block.get_node_locs();
                         points = points.rowwise() - v_origin.transpose();
-                        Eigen::Matrix<float, -1, -1> _(lines.rows(), points.rows()); // used to select correct function
-                        auto pldist = seddom::dist_pl<float, 3>(lines.leftCols(3), points.leftCols(3), _);
-                        Eigen::Matrix<bool, 1, -1> validity = pldist.colwise().minCoeff().array() < _ell;
+                        Eigen::Matrix<float, -1, -1> r(lines.rows(), points.rows());
+                        auto pldist = seddom::dist_pl<float, 3>(lines.leftCols(3), points.leftCols(3), r);
+                        auto plcondition = (pldist.array() < _ell) && (r.array() > 1.);
+                        Eigen::Matrix<bool, 1, -1> occluded = plcondition.colwise().any();
                         
                         size_t j = 0;
                         for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, j++)
-                            if (validity(j)) // only mark nodes with close enough distance
+                        {
+                            if (occluded(j))
                                 leaf_it->mark_occluded(timestamp);
+#ifndef NDEBUG
+                            else
+                                leaf_it->debug_state = 2;
+#endif
+                        }
                     }
                 }
             }
@@ -444,11 +451,25 @@ namespace seddom
                 if (KType == KernelType::BGK || KType == KernelType::SBGK)
                 {
                     PROFILE_THREAD_SPLIT("Predict BKI");
-                    Eigen::VectorXf ybar = bgkl.template predict<KType>(xs.leftCols(3));
+                    Eigen::Matrix<float, -1, -1> d(block_x.rows(), xs.rows()), r(block_x.rows(), xs.rows());
+                    Eigen::VectorXf ybar = bgkl.template predict<KType>(xs.leftCols(3), d, r);
+                    auto plcondition = (d.array() < _ell) && (r.array() > 1.); // same as above
+                    Eigen::Matrix<bool, 1, -1> occluded = plcondition.colwise().any();
 
                     int j = 0;
                     for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
-                        leaf_it->update_free(ybar[j]);
+                    {
+                        if (ybar[j] > 0)
+                            leaf_it->update_free(ybar[j], timestamp);
+                        else if (occluded(j)) // the grid is occluded if only it's not associated with any beams
+                            leaf_it->mark_occluded(timestamp);
+#ifndef NDEBUG
+                        else
+                        {
+                            leaf_it->debug_state = 1;
+                        }
+#endif
+                    }
                 }
                 else
                     assert(false);

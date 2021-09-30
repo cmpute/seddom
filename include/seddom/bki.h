@@ -109,6 +109,10 @@ namespace seddom
         template <KernelType KType>
         MatrixYType predict(const MatrixXType &xs) const;
 
+        // also return the distances from the points to the lines
+        template <KernelType KType>
+        MatrixYType predict(const MatrixXType &xs, MatrixKType &d, MatrixKType& r) const;
+
     private:
         T _sf2; // signal variance
         T _ell; // length-scale

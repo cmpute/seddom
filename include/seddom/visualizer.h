@@ -41,7 +41,11 @@ namespace seddom
             visualization_msgs::MarkerArray::Ptr msg(new visualization_msgs::MarkerArray);
 
             // initialize markers
+#ifndef NDEBUG
+            msg->markers.resize(BlockDepth+2);
+#else
             msg->markers.resize(BlockDepth+1);
+#endif
             ros::Time ts = ros::Time::now();
             for (int i = 0; i < BlockDepth; ++i)
             {
@@ -85,6 +89,17 @@ namespace seddom
             msg->markers[BlockDepth+1].scale.y = map.block_size() * 0.8;
             msg->markers[BlockDepth+1].scale.z = map.block_size() * 0.8;
             msg->markers[BlockDepth+1].ns = "octomap/occluded_full";
+
+#ifndef NDEBUG
+            // initialize marker for debug states
+            msg->markers.emplace_back();
+            msg->markers[BlockDepth+2].header.frame_id = _frame_id;
+            msg->markers[BlockDepth+2].header.stamp = ts;
+            msg->markers[BlockDepth+2].type = visualization_msgs::Marker::POINTS;
+            msg->markers[BlockDepth+2].scale.x = map.resolution() * 0.2;
+            msg->markers[BlockDepth+2].scale.y = map.resolution() * 0.2;
+            msg->markers[BlockDepth+2].ns = "octomap/debug_state";
+#endif
 
             // calculate scale
             float min_v = std::numeric_limits<float>::max(), max_v = std::numeric_limits<float>::min();
@@ -137,6 +152,8 @@ namespace seddom
                     std_msgs::ColorRGBA color; // calculate color from time history
                     const float max_hist = 5000; // 5 seconds
                     std::chrono::milliseconds history = std::chrono::duration_cast<std::chrono::milliseconds>(map.get_stamp() - it->get_stamp());
+                    if (history.count() > max_hist) // only show newer occluded nodes
+                        continue;
                     color.r = 0.5;
                     color.g = 0.5;
                     color.b = 0.5;
@@ -145,6 +162,33 @@ namespace seddom
                     msg->markers[BlockDepth].points.push_back(center);
                     msg->markers[BlockDepth].colors.push_back(color);
                 }
+#ifndef NDEBUG
+                else if (it->debug_state != 0)
+                {
+                    geometry_msgs::Point center;
+                    center.x = p.x;
+                    center.y = p.y;
+                    center.z = p.z;
+
+                    std_msgs::ColorRGBA color;
+                    switch (it->debug_state)
+                    {
+                        case 1:
+                            color.r = 1; color.g = 0; color.b = 0; color.a = 1;
+                            break;
+                        case 2:
+                            color.r = 0; color.g = 1; color.b = 0; color.a = 1;
+                            break;
+                        case 3:
+                            color.r = 0; color.g = 0; color.b = 1; color.a = 1;
+                            break;
+                        default:
+                            assert(false);
+                    }
+                    msg->markers[BlockDepth+2].points.push_back(center);
+                    msg->markers[BlockDepth+2].colors.push_back(color);
+                }
+#endif
             }
 
             for (auto bkey : map.get_occluded_blocks())

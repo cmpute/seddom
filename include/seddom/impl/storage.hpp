@@ -160,7 +160,7 @@ namespace seddom
 
         size_t chunk_bits = 3 * (map._chunk_depth - 1);
         const uint64_t morton = key_to_morton(key);
-        DEBUG_WRITE("Loading chunk " << key << " (morton: " << morton << ")");
+        // DEBUG_WRITE("Loading chunk " << key << " (morton: " << morton << ")");
         assert_ok(sqlite3_prepare_v2(_db, sql_query_chunk.c_str(), -1, &stmt, NULL));
         assert_ok(sqlite3_bind_int64(stmt, 1, morton << chunk_bits));
         assert_ok(sqlite3_bind_int64(stmt, 2, (morton + 1) << chunk_bits));
@@ -203,7 +203,7 @@ namespace seddom
         const std::string sql_insert_block = "REPLACE INTO '" + table_name +
                                              "' (hashkey, last_update, data) VALUES(?,?,?);";
 
-        DEBUG_WRITE("Dumping chunk " << key);
+        // DEBUG_WRITE("Dumping chunk " << key);
         auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(map._latest_time.time_since_epoch()).count();
         assert_ok(sqlite3_prepare_v2(_db, sql_insert_block.c_str(), -1, &stmt, NULL));
 

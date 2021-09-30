@@ -24,14 +24,11 @@ namespace seddom
     template <typename T, size_t Dim> inline Eigen::Matrix<T, -1, -1>
     dist_pl(const Eigen::Matrix<T, -1, Dim> &l, const Eigen::Matrix<T, -1, Dim> &p)
     {
-        const T max_dist = 100; // make sure max_dist > _ell
         Eigen::Matrix<T, -1, -1> d(l.rows(), p.rows());
         for (int i = 0; i < l.rows(); ++i)
         {
             T len = l.row(i).norm();
-            auto dl = p.rowwise().cross(l.row(i)).rowwise().norm() / len;
-            auto condition = p.rowwise().norm().array() < len; // gating with range circle instead of projection for faster calculation
-            d.row(i) = condition.select(dl, max_dist);
+            d.row(i) = p.rowwise().cross(l.row(i)).rowwise().norm() / l.row(i).norm();
         }
         return d;
     }
@@ -44,7 +41,7 @@ namespace seddom
         for (int i = 0; i < l.rows(); ++i)
         {
             T len = l.row(i).norm();
-            r.row(i) = (p * l.row(i).transpose()) / (len * len);
+            r.row(i) = (p * l.row(i).transpose()).array().abs() / (len * len); // ratio of projected line over original line
             d.row(i) = p.rowwise().cross(l.row(i)).rowwise().norm() / len;
         }
         return d;
@@ -140,8 +137,40 @@ namespace seddom
         else
             assert(false);
 
-        PROFILE_SPLIT("Dot product");
-        return Ks.rowwise().sum(); // TODO: clamp max out to prevent new occupancy not being updated?
+        PROFILE_SPLIT("Row-wise sum");
+        assert ((Ks.array() >= 0).all()); // TODO: test the difference between row-wise sum and row-wise max in results
+        return Ks.rowwise().sum();
+    }
+
+    BGKL_TDECL template <KernelType KType> typename BGKL_CLASS::MatrixYType
+    BGKL_CLASS::predict(const typename BGKL_CLASS::MatrixXType &xs, typename BGKL_CLASS::MatrixKType &d, typename BGKL_CLASS::MatrixKType &r) const
+    {
+        PROFILE_FUNCTION;
+#ifndef NDEBUG
+        assert(trained == true && "The inference block has not been trained!");
+#endif
+
+        PROFILE_BLOCK("Calculate cov");
+        typename BGKL_CLASS::MatrixKType Ks;
+
+        d = dist_pl<T, Dim>(_x, xs, r);
+        if (KType == KernelType::BGK)
+        {
+            Ks = covSparse<T, Dim>(d.transpose() / _ell, _sf2);
+        }
+        else if (KType == KernelType::SBGK)
+        {
+            auto cov = covSparse<T, Dim>(d.transpose() / _ell, _sf2);
+            auto rarray = r.transpose().array();
+            // Ks = cov.array() * (rarray < 1).select(rarray, 0); // linear weighted
+            Ks = cov.array() * (rarray < 0.5).select(rarray, 1 - rarray).cwiseMax(0.0); // symmetric linear weighted
+        }
+        else
+            assert(false);
+
+        PROFILE_SPLIT("Row-wise sum");
+        assert ((Ks.array() >= 0).all());
+        return Ks.rowwise().sum();
     }
 }
 

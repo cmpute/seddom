@@ -55,6 +55,10 @@ namespace seddom
         static SaveFormat save_format;
         static SaveOptions save_options;
 
+#ifndef NDEBUG
+        int debug_state = 0;
+#endif
+
         /*
          * @brief Constructors and destructor.
          */

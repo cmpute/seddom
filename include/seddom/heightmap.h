@@ -103,7 +103,7 @@ namespace seddom
                         }
                     }
 
-                if (nit->is_occluded())
+                if (nit->is_occluded()) // TODO: skip very old occluded blocks here? or directly create a new function called is_newly_occluded
                 {
                     // update full occluded height
                     if (_occlusion_handling == OcclusionHandling::ALL)
