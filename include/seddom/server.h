@@ -34,9 +34,10 @@ namespace seddom
             std::string visualize_topic("");
             std::string gridmap_topic("");
             std::string map_path("");
+            std::string occlusion_handling("none");
 
-            bool occlusion_aware = true;
             int chunk_depth = 6;
+            float gridmap_range = 100;
             float sf2 = 10.0;
             float ell = 0.3;
             float resolution = 0.3;
@@ -48,10 +49,11 @@ namespace seddom
             nh_private.param<std::string>("gridmap_topic", gridmap_topic, gridmap_topic);
             nh_private.param<std::string>("map_frame_id", _map_frame_id, _map_frame_id);
             nh_private.param<std::string>("map_path", map_path, map_path);
+            nh_private.param<std::string>("occlusion_handling", occlusion_handling, occlusion_handling);
 
-            nh_private.param<bool>("occlusion_aware", occlusion_aware, occlusion_aware);
             nh_private.param<float>("resolution", resolution, resolution);
             nh_private.param<int>("chunk_depth", chunk_depth, chunk_depth);
+            nh_private.param<float>("gridmap_range", gridmap_range, gridmap_range);
             nh_private.param<float>("sf2", sf2, sf2);
             nh_private.param<float>("ell", ell, ell);
             nh_private.param<float>("prior", prior, prior);
@@ -60,12 +62,28 @@ namespace seddom
             nh_private.param<float>("ds_resolution", _ds_resolution, _ds_resolution);
             nh_private.param<int>("random_samples_per_beam", _samples_per_beam, _samples_per_beam);
 
-            _map = std::make_shared<MapType>(occlusion_aware, resolution, chunk_depth, sf2, ell, prior, max_range);
+            OcclusionHandling oh;
+            if (occlusion_handling == "none")
+                oh = OcclusionHandling::NONE;
+            else if (occlusion_handling == "known")
+                oh = OcclusionHandling::KNOWN;
+            else if (occlusion_handling == "all")
+                oh = OcclusionHandling::ALL;
+            else
+            {
+                ROS_WARN("Unrecognized occlusion handling flag (possible options: none, known, all). Occlusion handling will be disabled.");
+                oh = OcclusionHandling::NONE;
+            }
+
+            _map = std::make_shared<MapType>(oh, resolution, chunk_depth, sf2, ell, prior, max_range);
             _cloud_sub = _nh.subscribe(_cloud_topic, 4, &SemanticOccupancyMapServer::cloud_callback, this);
+            _tf_pub = _nh.advertise<tf2_msgs::TFMessage>("/tf", 1, 1); // these publisers are for broadcasting the tf messages from ros bag.
+            _tf_static_pub = _nh.advertise<tf2_msgs::TFMessage>("/tf_static", 1, 1);
             if (!visualize_topic.empty())
                 _visualizer = std::make_unique<seddom::OctomapVisualizer>(nh, visualize_topic, _map_frame_id);
             if (!gridmap_topic.empty())
-                _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, "odom", 50, _map->resolution()); // TODO: select correct frame_id for the generated gridmap
+                _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, "odom",
+                    gridmap_range, _map->resolution(), oh); // TODO: select correct frame_id for the generated gridmap
             _dump_service = nh_private.advertiseService("dump_map", &SemanticOccupancyMapServer::dump_map_callback, this);
 
             ROS_INFO_STREAM("Parameters:" << std::endl
@@ -152,12 +170,14 @@ namespace seddom
                 }
                 else if (m.getTopic() == "/tf_static")
                 {
+                    _tf_static_pub.publish(m);
                     auto tfmsg = m.instantiate<tf2_msgs::TFMessage>();
                     for(int i = 0; i < tfmsg->transforms.size(); i++)
                         tfbuffer.setTransform(tfmsg->transforms[i], "default", /*is_static*/ true);
                 }
                 else if (m.getTopic() == "/tf")
                 {
+                    _tf_pub.publish(m);
                     auto tfmsg = m.instantiate<tf2_msgs::TFMessage>();
                     for(int i = 0; i < tfmsg->transforms.size(); i++)
                         tfbuffer.setTransform(tfmsg->transforms[i], "default", /*is_static*/ false);
@@ -210,11 +230,26 @@ namespace seddom
             ROS_INFO("Inserted point cloud with %d points, takes %.2f ms", (int)pcl_cloud->size(), (tend - tstart).toSec() * 1000);
 
             if (_zmap_generator != nullptr)
+            {
+                tstart = ros::Time::now();
                 _zmap_generator->publish_octomap<SemanticClass, BlockDepth>(*_map);
+                tend = ros::Time::now();
+                ROS_INFO("(1) Height map are generated in %.2f ms", (tend - tstart).toSec() * 1000);
+            }
             if (_visualizer != nullptr)
+            {
+                tstart = ros::Time::now();
                 _visualizer->publish_octomap<SemanticClass, BlockDepth, OctomapVisualizeMode::SEMANTICS>(*_map);
+                tend = ros::Time::now();
+                ROS_INFO("(2) 3D map markers are published in %.2f ms", (tend - tstart).toSec() * 1000);
+            }
             if (_storage != nullptr)
+            {
+                tstart = ros::Time::now();
                 _storage->sync(*_map);
+                tend = ros::Time::now();
+                ROS_INFO("(3) Map storage is synced in %.2f ms", (tend - tstart).toSec() * 1000);
+            }
         }
 
         ~SemanticOccupancyMapServer()
@@ -239,6 +274,7 @@ namespace seddom
         std::unique_ptr<seddom::OctomapVisualizer> _visualizer;
         std::unique_ptr<seddom::OctomapStorage> _storage;
         std::unique_ptr<seddom::HeightMapGenerator> _zmap_generator;
+        ros::Publisher _tf_pub, _tf_static_pub;
 
         std::string _map_frame_id = "odom";
         int _samples_per_beam = -1;

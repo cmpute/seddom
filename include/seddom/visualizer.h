@@ -41,7 +41,7 @@ namespace seddom
             visualization_msgs::MarkerArray::Ptr msg(new visualization_msgs::MarkerArray);
 
             // initialize markers
-            msg->markers.resize(BlockDepth);
+            msg->markers.resize(BlockDepth+1);
             ros::Time ts = ros::Time::now();
             for (int i = 0; i < BlockDepth; ++i)
             {
@@ -76,6 +76,15 @@ namespace seddom
             msg->markers[BlockDepth].scale.y = map.resolution() * 0.8;
             msg->markers[BlockDepth].scale.z = map.resolution() * 0.8;
             msg->markers[BlockDepth].ns = "octomap/occluded";
+
+            msg->markers.emplace_back();
+            msg->markers[BlockDepth+1].header.frame_id = _frame_id;
+            msg->markers[BlockDepth+1].header.stamp = ts;
+            msg->markers[BlockDepth+1].type = visualization_msgs::Marker::SPHERE_LIST;
+            msg->markers[BlockDepth+1].scale.x = map.block_size() * 0.8;
+            msg->markers[BlockDepth+1].scale.y = map.block_size() * 0.8;
+            msg->markers[BlockDepth+1].scale.z = map.block_size() * 0.8;
+            msg->markers[BlockDepth+1].ns = "octomap/occluded_full";
 
             // calculate scale
             float min_v = std::numeric_limits<float>::max(), max_v = std::numeric_limits<float>::min();
@@ -136,6 +145,24 @@ namespace seddom
                     msg->markers[BlockDepth].points.push_back(center);
                     msg->markers[BlockDepth].colors.push_back(color);
                 }
+            }
+
+            for (auto bkey : map.get_occluded_blocks())
+            {
+                pcl::PointXYZ block_center = map.block_key_to_center(bkey);
+                geometry_msgs::Point center;
+                center.x = block_center.x;
+                center.y = block_center.y;
+                center.z = block_center.z;
+
+                std_msgs::ColorRGBA color;
+                color.r = 0.5;
+                color.g = 0.5;
+                color.b = 0.5;
+                color.a = 0.5;
+
+                msg->markers[BlockDepth+1].points.push_back(center);
+                msg->markers[BlockDepth+1].colors.push_back(color);
             }
 
             _pub.publish(*msg);

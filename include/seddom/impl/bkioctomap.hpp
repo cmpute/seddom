@@ -65,14 +65,14 @@ namespace seddom
     constexpr size_t OCTOMAP_CLASS::NumClass;
 
     OCTOMAP_TDECL
-    OCTOMAP_CLASS::SemanticBKIOctoMap(bool occlusion_aware,
+    OCTOMAP_CLASS::SemanticBKIOctoMap(OcclusionHandling occlusion_handling,
                                       float resolution,
                                       size_t chunk_depth,
                                       float sf2,
                                       float ell,
                                       float prior,
                                       float max_range)
-        : _occlusion_aware(occlusion_aware),
+        : _occlusion_handling(occlusion_handling),
           _resolution(resolution),
           _chunk_depth(chunk_depth),
           _block_size((float)pow(2, BlockDepth - 1) * resolution),
@@ -346,7 +346,7 @@ namespace seddom
         PROFILE_SPLIT("Train free beams");
         _occluded_blocks.clear();
         std::vector<BlockHashKey> in_blocks;
-        if (_occlusion_aware)
+        if (_occlusion_handling != OcclusionHandling::NONE)
             // TODO: add ground range filter, and further optimize which blocks to be considered
             in_blocks = get_blocks_in_bbox(min_pt, max_pt, origin);
         else
@@ -376,7 +376,7 @@ namespace seddom
             if (rit == beam_tree.qend())
             {
                 PROFILE_THREAD_BLOCK("Occluded beam");
-                if (!_occlusion_aware)
+                if (_occlusion_handling == OcclusionHandling::NONE)
                     continue;
 
                 // this block is occluded if it lies on some extended beams but not on any actual beams
@@ -388,7 +388,10 @@ namespace seddom
                 {
                     auto bit = _blocks.find(hkey);
                     if (bit == _blocks.end())
-                        _occluded_blocks.insert(hkey);
+                    {
+                        if (_occlusion_handling == OcclusionHandling::ALL)
+                            _occluded_blocks.insert(hkey);
+                    }
                     else
                     {
                         std::vector<size_t> indices;

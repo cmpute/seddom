@@ -33,6 +33,13 @@ namespace seddom
     typedef uint64_t BlockHashKey;
     typedef uint64_t ChunkHashKey;
 
+    enum class OcclusionHandling
+    {
+        NONE,
+        KNOWN,
+        ALL
+    };
+
     /*
      * @brief BGKOctoMap
      *
@@ -67,7 +74,7 @@ namespace seddom
 
     public:
         SemanticBKIOctoMap() : SemanticBKIOctoMap(
-                                   false, // process occlusion
+                                   OcclusionHandling::NONE, // process occlusion
                                    0.1f,  // resolution
                                    6,     // chunk_depth
                                    1.0,   // sf2
@@ -89,7 +96,7 @@ namespace seddom
          *                  max_range <= 0 means no limit
          */
         SemanticBKIOctoMap(
-            bool occlusion_aware,
+            OcclusionHandling occlusion_handling,
             float resolution,
             size_t chunk_depth,
             float sf2,
@@ -285,7 +292,7 @@ namespace seddom
         PointCloudXYZL::Ptr get_random_training_data(PointCloudXYZL::ConstPtr cloud, const pcl::PointXYZ &origin,
                                                      float ds_resolution, int samples_per_beam);
 
-        bool _occlusion_aware;
+        OcclusionHandling _occlusion_handling;
         float _resolution;
         float _block_size;
         size_t _chunk_depth;

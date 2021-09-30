@@ -9,7 +9,7 @@ ds_resolution: 0.1 # Downsampling factor
 chunk_depth: 4
 max_range: -1 # Sensor max range (m)
 block_depth: 3 # This is defined in compile time
-occlusion_aware: true
+occlusion_handling: known
 
 # Kernel parameters
 sf2: 10.0 # Actually sigma_0 in sparse kernel
