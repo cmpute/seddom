@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /PointCloud21/Autocompute Value Bounds1
         - /GridMap1
+        - /TF1
       Splitter Ratio: 0.3723723590373993
     Tree Height: 759
   - Class: rviz/Selection
@@ -118,6 +119,45 @@ Visualization Manager:
       Topic: /grid_map
       Unreliable: false
       Use Rainbow: true
+      Value: true
+    - Class: rviz/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        cam0:
+          Value: true
+        cam1:
+          Value: true
+        cam2:
+          Value: true
+        cam3:
+          Value: true
+        odom:
+          Value: true
+        odom_pose:
+          Value: true
+        velo:
+          Value: true
+      Marker Alpha: 1
+      Marker Scale: 15
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        odom:
+          odom_pose:
+            cam0:
+              cam1:
+                {}
+              cam2:
+                {}
+              cam3:
+                {}
+              velo:
+                {}
+      Update Interval: 0
       Value: true
   Enabled: true
   Global Options:

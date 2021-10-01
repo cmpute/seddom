@@ -367,60 +367,17 @@ namespace seddom
 
             float rs = search_range / r;
             float rs_phi = rs / cos(theta);
-            spoint_t p1 = {phi - rs_phi, std::max(theta - rs, -float(PI / 2)), r};
+            spoint_t p1 = {phi - rs_phi, std::max(theta - rs, -float(PI / 2)), r - search_range}; // add tolerance for block size and kernel size
             spoint_t p2 = {phi + rs_phi, std::min(theta + rs, float(PI / 2)), std::numeric_limits<float>::max()};
             sbox_t bq(p1, p2);
 
-            PROFILE_THREAD_SPLIT("Query rtree");
+            PROFILE_THREAD_SPLIT("Query rtree for free samples");
+            Eigen::VectorXf ybar; // also used to indicate whether a node is associated with any beam
             auto rit = beam_tree.qbegin(bgi::within(bq));
             if (rit == beam_tree.qend())
             {
-                PROFILE_THREAD_BLOCK("Occluded beam");
-                if (_occlusion_handling == OcclusionHandling::NONE)
-                    continue;
-
-                // this block is occluded if it lies on some extended beams but not on any actual beams
-                p1.set<2>(0);
-                p2.set<2>(r - _ell); // add tolerance of _ell
-                bq = { p1, p2 };
-                rit = beam_tree.qbegin(bgi::within(bq));
-                if (rit != beam_tree.qend())
-                {
-                    auto bit = _blocks.find(hkey);
-                    if (bit == _blocks.end())
-                    {
-                        if (_occlusion_handling == OcclusionHandling::ALL)
-                            _occluded_blocks.insert(hkey);
-                    }
-                    else
-                    {
-                        std::vector<size_t> indices;
-                        for (size_t j = 0; rit != beam_tree.qend() && j < _max_beams; ++rit, ++j)
-                            indices.push_back(rit->second);
-                        Eigen::Matrix<float, -1, 4> lines(indices.size(), 4);
-                        for (size_t j = 0; j < lines.rows(); j++)
-                            lines.row(j) = ptarray.col(indices[j]);
-
-                        BlockType &block = bit->second;
-                        Eigen::Matrix<float, -1, 4> points = block.get_node_locs();
-                        points = points.rowwise() - v_origin.transpose();
-                        Eigen::Matrix<float, -1, -1> r(lines.rows(), points.rows());
-                        auto pldist = seddom::dist_pl<float, 3>(lines.leftCols(3), points.leftCols(3), r);
-                        auto plcondition = (pldist.array() < _ell) && (r.array() > 1.);
-                        Eigen::Matrix<bool, 1, -1> occluded = plcondition.colwise().any();
-                        
-                        size_t j = 0;
-                        for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, j++)
-                        {
-                            if (occluded(j))
-                                leaf_it->mark_occluded(timestamp);
-#ifndef NDEBUG
-                            else
-                                leaf_it->debug_state = 2;
-#endif
-                        }
-                    }
-                }
+                // fill ybar with zeros if no association
+                ybar = Eigen::VectorXf::Zero(BlockType::leaf_count());
             }
             else
             {
@@ -451,28 +408,71 @@ namespace seddom
                 if (KType == KernelType::BGK || KType == KernelType::SBGK)
                 {
                     PROFILE_THREAD_SPLIT("Predict BKI");
-                    Eigen::Matrix<float, -1, -1> d(block_x.rows(), xs.rows()), r(block_x.rows(), xs.rows());
-                    Eigen::VectorXf ybar = bgkl.template predict<KType>(xs.leftCols(3), d, r);
-                    auto plcondition = (d.array() < _ell) && (r.array() > 1.); // same as above
-                    Eigen::Matrix<bool, 1, -1> occluded = plcondition.colwise().any();
+                    ybar = bgkl.template predict<KType>(xs.leftCols(3));
 
                     int j = 0;
                     for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
                     {
-                        if (ybar[j] > 0)
-                            leaf_it->update_free(ybar[j], timestamp);
-                        else if (occluded(j)) // the grid is occluded if only it's not associated with any beams
-                            leaf_it->mark_occluded(timestamp);
+                        leaf_it->update_free(ybar[j], timestamp);
 #ifndef NDEBUG
-                        else
-                        {
+                        if (ybar[j] > 0)
                             leaf_it->debug_state = 1;
-                        }
 #endif
                     }
                 }
                 else
                     assert(false);
+            }
+
+
+            // TODO: skip blocks above the sensor origin (since by definition we only care about the area below the highest point of the vehicle)
+            // TODO: we can also skip blocks below ground height or with no ground height, but this would requires that we integrate the 2D map module into this class.
+            PROFILE_THREAD_SPLIT("Query rtree for occlusion");
+            if (_occlusion_handling != OcclusionHandling::NONE)
+            {
+                // this block is occluded if it lies on some extended beams but not on any actual beams
+                p1.set<2>(0);
+                p2.set<2>(r + search_range); // add tolerance of block size and kernel size
+                bq = { p1, p2 };
+                rit = beam_tree.qbegin(bgi::within(bq));
+
+                if (rit != beam_tree.qend())
+                {
+                    auto bit = _blocks.find(hkey);
+                    if (bit == _blocks.end())
+                    {
+                        if (_occlusion_handling == OcclusionHandling::ALL)
+                            _occluded_blocks.insert(hkey);
+                    }
+                    else
+                    {
+                        std::vector<size_t> indices;
+                        for (size_t j = 0; rit != beam_tree.qend() && j < _max_beams; ++rit, ++j)
+                            indices.push_back(rit->second);
+                        Eigen::Matrix<float, -1, 4> lines(indices.size(), 4);
+                        for (size_t j = 0; j < lines.rows(); j++)
+                            lines.row(j) = ptarray.col(indices[j]);
+
+                        BlockType &block = bit->second;
+                        Eigen::Matrix<float, -1, 4> points = block.get_node_locs();
+                        points = points.rowwise() - v_origin.transpose();
+                        Eigen::Matrix<float, -1, -1> r(lines.rows(), points.rows());
+                        auto pldist = seddom::dist_pl<float, 3>(lines.leftCols(3), points.leftCols(3), r);
+                        auto plcondition = (pldist.array() < _ell) && (r.array() > 1.); // close enough to the beam line and farther than the hit point
+                        Eigen::Matrix<bool, 1, -1> occluded = plcondition.colwise().any();
+                        
+                        size_t j = 0;
+                        for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, j++)
+                        {
+                            if (occluded(j) && ybar(j) <= 0.0)
+                                leaf_it->mark_occluded(timestamp);
+#ifndef NDEBUG
+                            else if (leaf_it->debug_state != 1)
+                                leaf_it->debug_state = 2;
+#endif
+                        }
+                    }
+                }
             }
         }
 
