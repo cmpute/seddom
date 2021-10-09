@@ -263,7 +263,7 @@ namespace seddom
 
     private:
         template <KernelType KType>
-        void inference_points(const PointCloudXYZL::Ptr training_data);
+        void inference_points(const PointCloudXYZL::Ptr training_data, std::chrono::system_clock::time_point timestamp);
 
         /// Get all block indices inside a bounding box.
         std::vector<BlockHashKey> get_blocks_in_bbox(const pcl::PointXYZ &lim_min, const pcl::PointXYZ &lim_max) const;
@@ -305,7 +305,7 @@ namespace seddom
         Eigen::Rand::Vmt19937_64 _rng;
         pcl::PointXYZ _map_origin;
         pcl::PointXYZ _latest_position;
-        std::chrono::system_clock::time_point _latest_time = std::chrono::system_clock::now();
+        std::chrono::system_clock::time_point _latest_time;
         // TODO: update from new measurement or database, otherwise initialize as 0 (from utc start)
         // TODO: also store latest time for each block
 

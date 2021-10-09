@@ -82,7 +82,7 @@ namespace seddom
           _min_range(0.5),
           _max_beams(500),
           _map_origin(0, 0, 0),
-          _latest_time()
+          _latest_time(std::chrono::system_clock::time_point(std::chrono::system_clock::duration(0)))
     {
         SemanticOctreeNode<NumClass>::prior = prior;
         assert(chunk_depth > 0 && chunk_depth <= 20 && "Chunk depth should not be greater than 20!");
@@ -116,7 +116,7 @@ namespace seddom
             return;
 
         PROFILE_SPLIT("Inference");
-        inference_points<KType>(xy);
+        inference_points<KType>(xy, timestamp);
 
         _latest_position = origin;
         _latest_time = timestamp;
@@ -144,7 +144,7 @@ namespace seddom
             return;
 
         PROFILE_SPLIT("Inference");
-        inference_points<KType>(xy);
+        inference_points<KType>(xy, timestamp);
 
         _latest_position = origin;
         _latest_time = timestamp;
@@ -156,7 +156,8 @@ namespace seddom
 
     OCTOMAP_TDECL template <KernelType KType>
     void
-    OCTOMAP_CLASS::inference_points(const PointCloudXYZL::Ptr training_data)
+    OCTOMAP_CLASS::inference_points(const PointCloudXYZL::Ptr training_data,
+                                    std::chrono::system_clock::time_point timestamp)
     {
         PROFILE_FUNCTION;
 
@@ -260,7 +261,7 @@ namespace seddom
                 for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
                 {
                     // Only need to update if kernel density total kernel density est > 0
-                    leaf_it->update(ybars.row(j));
+                    leaf_it->update(ybars.row(j), timestamp);
                 }
             }
             else if (KType == KernelType::BGK || KType == KernelType::SBGK)
@@ -280,7 +281,7 @@ namespace seddom
                     int j = 0;
                     for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
                     {
-                        leaf_it->update(ybars.row(j));
+                        leaf_it->update(ybars.row(j), timestamp);
                     }
                 }
             }
@@ -305,7 +306,7 @@ namespace seddom
 
         PROFILE_SPLIT("Inference hits");
         if (sampled_hits->size() > 0)
-            inference_points<KType>(sampled_hits);
+            inference_points<KType>(sampled_hits, timestamp);
 
         PROFILE_SPLIT("Create Rtree");
         namespace bg = boost::geometry;

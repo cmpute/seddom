@@ -87,7 +87,6 @@ namespace seddom
 
         float _resolution;
         pcl::PointXYZ _center;
-        std::chrono::system_clock::time_point _latest_time;
     };
 }
 

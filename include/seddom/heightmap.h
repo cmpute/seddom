@@ -10,13 +10,14 @@
 
 namespace seddom
 {
-    const std::string LAYER_GROUND_ELEVATION = "elevation";
-    const std::string LAYER_GROUND_SEMANTIC = "semantic";
-    const std::string LAYER_CEILING_HEIGHT = "ceiling_height";
-    const std::string LAYER_CEILING_SEMANTIC = "ceiling_semantic";
-    const std::string LAYER_OCCLUDED_HEIGHT = "occluded_height";
-    const std::string LAYER_OCCLUDED_HEIGHT_FULL = "occluded_height_full";
-    const std::string LAYER_GRID_STATUS = "status";
+    const std::string LAYER_GROUND_ELEVATION = "elevation"; // height of the floor block (the highest block under sensor height)
+    const std::string LAYER_GROUND_SEMANTIC = "semantic"; // semantics of the floor block
+    const std::string LAYER_CEILING_HEIGHT = "ceiling_height"; // height of the ceiling block (the lowest block above sensor height)
+    const std::string LAYER_CEILING_SEMANTIC = "ceiling_semantic"; // semantics of the ceiling block
+    const std::string LAYER_OCCLUDED_HEIGHT = "occluded_height"; // height of occluded blocks under sensor height
+    const std::string LAYER_OCCLUDED_HEIGHT_FULL = "occluded_height_full"; // height of occluded blocks
+    const std::string LAYER_GRID_STATUS = "status"; // state for each grid, see the constants below
+    const std::string LAYER_GRID_STATUS_HISTORY = "status_history"; // time from current to last update time in seconds
 
     const float STATUS_UNKNOWN = NAN;
     const float STATUS_BLOCKED = 1.;
@@ -25,7 +26,9 @@ namespace seddom
     const float STATUS_OCCLUDED_BLOCKED = 2.;
     const float STATUS_OCCLUDED_FREE = -2.;
 
-    // TODO: also calculate occlusion for dynamic objects, maybe a separate node tracking objects and generating occluded area based on detections?
+    // TODO: also calculate occlusion for dynamic objects
+    // mode 1: don't accept detected objects and directly consider the measured points of the objects
+    // mode 2: accept detected objects, first remove the points inside these objects, then consider the bounding boxes when calculate occlusion
     class HeightMapGenerator
     {
     public:
@@ -47,12 +50,14 @@ namespace seddom
                 _zmap = grid_map::GridMap({
                     LAYER_GROUND_ELEVATION, LAYER_GROUND_SEMANTIC,
                     LAYER_CEILING_HEIGHT, LAYER_CEILING_SEMANTIC,
-                    LAYER_OCCLUDED_HEIGHT, LAYER_OCCLUDED_HEIGHT_FULL, LAYER_GRID_STATUS});
+                    LAYER_OCCLUDED_HEIGHT, LAYER_OCCLUDED_HEIGHT_FULL,
+                    LAYER_GRID_STATUS, LAYER_GRID_STATUS_HISTORY});
             else
                 _zmap = grid_map::GridMap({
                     LAYER_GROUND_ELEVATION, LAYER_GROUND_SEMANTIC,
                     LAYER_CEILING_HEIGHT, LAYER_CEILING_SEMANTIC,
-                    LAYER_OCCLUDED_HEIGHT, LAYER_GRID_STATUS});
+                    LAYER_OCCLUDED_HEIGHT, LAYER_GRID_STATUS,
+                    LAYER_GRID_STATUS_HISTORY});
 
             _zmap.setFrameId(frame_id);
             _zmap.setGeometry(
@@ -103,7 +108,7 @@ namespace seddom
                         }
                     }
 
-                if (nit->is_occluded()) // TODO: skip very old occluded blocks here? or directly create a new function called is_newly_occluded
+                if (nit->is_occluded()) // TODO: skip very old occluded blocks here? or directly create a new function called is_newly_occluded (to unify the parameter `max_hist` used in visualize)
                 {
                     // update full occluded height
                     if (_occlusion_handling == OcclusionHandling::ALL)
@@ -138,6 +143,7 @@ namespace seddom
                 }
             }
 
+            // TODO: also calculate the value for status_history for each grid
             for (grid_map::GridMapIterator git(_zmap); !git.isPastEnd(); ++git)
             {
                 float gheight = _zmap.at(LAYER_GROUND_ELEVATION, *git);

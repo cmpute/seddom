@@ -98,21 +98,21 @@ namespace seddom
         if (meta_exists)
         {
             // read params
-            const auto compare_param = [this, stmt, ec](const std::string &key, const std::string &value) -> bool
+            const auto compare_param = [this, stmt, ec](const std::string &key, const auto &value) -> bool
             {
                 std::stringstream ss;
                 ss << "SELECT 1 FROM meta WHERE key='" << key << "' AND value='" << value << "';";
                 return exec_find_sql(ss.str());
             };
-            if (!compare_param("block_depth", std::to_string(BlockDepth)))
+            if (!compare_param("block_depth", BlockDepth))
                 return false;
-            if (!compare_param("chunk_depth", std::to_string(map.chunk_depth())))
+            if (!compare_param("chunk_depth", map.chunk_depth()))
                 return false;
-            if (!compare_param("resolution", std::to_string(map.resolution())))
+            if (!compare_param("resolution", map.resolution()))
                 return false;
             if (!compare_param("semantic_class", typeid(SemanticClass).name()))
                 return false;
-            if (!compare_param("semantic_count", std::to_string(SemanticClass::NumClass)))
+            if (!compare_param("semantic_count", (size_t)(SemanticClass::NumClass)))
                 return false;
             return true;
         }
@@ -120,21 +120,21 @@ namespace seddom
         {
             // create table
             const std::string sql_create_table = "CREATE TABLE meta ("
-                                                 "key TEXT NOT NULL UNIQUE, value TEXT);";
+                                                 "key TEXT NOT NULL UNIQUE, value);";
             exec_sql(sql_create_table);
 
             // insert params
-            const auto insert_param = [this](const std::string &key, const std::string &value)
+            const auto insert_param = [this](const std::string &key, const auto &value)
             {
                 std::stringstream ss;
                 ss << "INSERT INTO meta (key, value) VALUES ('" << key << "', '" << value << "');";
                 exec_sql(ss.str());
             };
-            insert_param("block_depth", std::to_string(BlockDepth));
-            insert_param("chunk_depth", std::to_string(map.chunk_depth()));
-            insert_param("resolution", std::to_string(map.resolution()));
+            insert_param("block_depth", BlockDepth);
+            insert_param("chunk_depth", map.chunk_depth());
+            insert_param("resolution", map.resolution());
             insert_param("semantic_class", typeid(SemanticClass).name());
-            insert_param("semantic_count", std::to_string(SemanticClass::NumClass));
+            insert_param("semantic_count", (size_t)(SemanticClass::NumClass));
             return true;
         }
     }
@@ -165,12 +165,14 @@ namespace seddom
         assert_ok(sqlite3_bind_int64(stmt, 1, morton << chunk_bits));
         assert_ok(sqlite3_bind_int64(stmt, 2, (morton + 1) << chunk_bits));
         int step_result = sqlite3_step(stmt);
+        size_t latest_timestamp = 0;
         if (step_result == SQLITE_ROW)
         {
             do
             {
                 BlockHashKey key = morton_to_key(sqlite3_column_int64(stmt, 0));
                 size_t timestamp = sqlite3_column_int64(stmt, 1);
+                latest_timestamp = std::max(timestamp, latest_timestamp);
                 int n = sqlite3_column_bytes(stmt, 2);
                 const char *cur = reinterpret_cast<const char *>(sqlite3_column_blob(stmt, 2));
                 msgpack::object_handle oh = msgpack::unpack(cur, n);
@@ -188,6 +190,10 @@ namespace seddom
         if (map._chunks.find(key) == map._chunks.end())
             map._chunks.insert(key);
         _tracked_chunks.insert(key);
+
+        std::chrono::system_clock::time_point latest_time = std::chrono::system_clock::time_point(std::chrono::milliseconds(latest_timestamp));
+        if (map._latest_time < latest_time)
+            map._latest_time = latest_time;
     }
 
     template <typename SemanticClass, size_t BlockDepth>
@@ -204,7 +210,7 @@ namespace seddom
                                              "' (hashkey, last_update, data) VALUES(?,?,?);";
 
         // DEBUG_WRITE("Dumping chunk " << key);
-        auto timestamp = std::chrono::duration_cast<std::chrono::microseconds>(map._latest_time.time_since_epoch()).count();
+        auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(map._latest_time.time_since_epoch()).count();
         assert_ok(sqlite3_prepare_v2(_db, sql_insert_block.c_str(), -1, &stmt, NULL));
 
         int ec;

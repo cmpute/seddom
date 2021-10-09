@@ -83,15 +83,7 @@ namespace seddom
          * @param ybar kernel density estimate of positive class (occupied)
          */
         bool update(const ClassVector &ybars, std::chrono::system_clock::time_point timestamp);
-        bool update(const ClassVector &ybars)
-        {
-            return update(ybars, std::chrono::system_clock::now());
-        }
         bool update_free(float ybar, std::chrono::system_clock::time_point timestamp);
-        bool update_free(float ybar)
-        {
-            return update_free(ybar, std::chrono::system_clock::now());
-        }
 
         /// Get probability of occupancy.
         ClassVector get_probs() const;
