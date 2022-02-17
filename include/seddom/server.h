@@ -126,12 +126,13 @@ namespace seddom
         }
 
         // this function is used to parse the data directly from a ROS bag
-        void run_bag(const std::string &bag_path)
+        void run_bag(const std::string &bag_path, bool evaluate)
         {
             tf2_ros::Buffer tfbuffer;
             rosbag::Bag bag;
             bag.open(bag_path);
             std::deque<sensor_msgs::PointCloud2Ptr> cloud_queue;
+            int counter = 0;
 
             for(rosbag::MessageInstance const m: rosbag::View(bag))
             {
@@ -176,6 +177,15 @@ namespace seddom
 
                     run_point_cloud(pcl_cloud, origin);
                     ros::spinOnce();
+
+                    if (evaluate)
+                    {
+                        char scan_id_suffix[16];
+                        sprintf(scan_id_suffix, ".%04d.pcd", counter++);
+                        auto pcd_name = bag_path + std::string(scan_id_suffix);
+                        pcl::io::savePCDFileBinaryCompressed(pcd_name, *pcl_cloud);
+                        ROS_INFO("Transformed point cloud written to %s", pcd_name.c_str());
+                    }
                 }
             }
 

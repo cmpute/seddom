@@ -101,7 +101,7 @@ namespace seddom
         inline float block_depth() const { return BlockDepth; }
         inline float block_size() const { return _block_size; }
         inline size_t block_count() const { return _blocks.size(); }
-        inline float chunk_depth() const { return _chunk_depth; }
+        inline size_t chunk_depth() const { return _chunk_depth; }
         inline float chunk_size() const { return _chunk_size; }
         inline size_t chunk_count() const { return _chunks.size(); }
         inline size_t memory_size() const

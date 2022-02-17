@@ -13,6 +13,7 @@
         <param name="cloud_topic" value="/annotation_3dpoints"/>
         <param name="bag_path" value="$(arg data_path)" unless="$(arg online)"/>
         <param name="map_path" value="/home/jacobz/temp_map.db3"/>
+        <!-- <param name="evaluate" value="true"/> -->
         <rosparam file="$(arg pkg)/config/clapper.yaml" command="load" />
     </node>
 </launch>

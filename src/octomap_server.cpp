@@ -14,21 +14,23 @@ int main(int argc, char **argv)
 
     std::string semclass;
     std::string bag_path;
+    bool evaluate;
     nh_private.param<std::string>("semantic_class", semclass, "");
     nh_private.param<std::string>("bag_path", bag_path, "");
+    nh_private.param<bool>("evaluate", evaluate, false);
 
     if (semclass == "semantic_kitti")
     {
         SemanticKITTIMap server(nh, nh_private);
         if (!bag_path.empty())
-            server.run_bag(bag_path);
+            server.run_bag(bag_path, evaluate);
         ros::spin();
     }
     else if (semclass == "nuscenes")
     {
         NuscenesMap server(nh, nh_private);
         if (!bag_path.empty())
-            server.run_bag(bag_path);
+            server.run_bag(bag_path, evaluate);
         ros::spin();
     }
     else if (semclass.empty())

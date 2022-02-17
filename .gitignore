@@ -40,3 +40,6 @@ data/
 
 # notes
 TODO.md
+
+# python cache
+scripts/__pycache__

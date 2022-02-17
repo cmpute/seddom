@@ -1,144 +1,141 @@
 import msgpack
 import struct
 import numpy as np
-from collections import namedtuple
+import sqlite3
+import math
+from collections import namedtuple, OrderedDict
 
-SemanticBKIOctoMap = namedtuple("SemanticBKIOctoMap", ['resolution', 'block_depth', 'blocks'])
+Node = namedtuple("SeddomNode", ['timestamp', 'state', 'probs'])
 SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE = 10
 
-class SBKIOctoMapNode:
-    def __init__(self) -> None:
-        self.data = []
+def morton(x):
+    '''
+    Generated 3D morton codes for a N*3 input
+    Reference:
+    https://blog.claude.nl/tech/timing-morton-code-on-python-on-apple-silicon/
+    '''
+    # for 32 bit:
+    # x = (x | (x << 16)) & 0x030000FF
+    # x = (x | (x <<  8)) & 0x0300F00F
+    # x = (x | (x <<  4)) & 0x030C30C3
+    # x = (x | (x <<  2)) & 0x09249249
 
-    def __hash__(self) -> int:
-        return hash(self.data.tostring())
+    # for 64 bit:
+    x = (x | x << 32) & 0x001f00000000ffff
+    x = (x | x << 16) & 0x001f0000ff0000ff
+    x = (x | x << 8)  & 0x100f00f00f00f00f
+    x = (x | x << 4)  & 0x10c30c30c30c30c3
+    x = (x | x << 2)  & 0x1249249249249249
+    x = x << np.arange(3, dtype="u8")  
+    return np.bitwise_or.reduce(x, axis=-1)
 
-    def thash(self, tol=1e-9):
-        return hash((self.data / tol).astype(int).tostring())
+class SeddoMap:
+    def __init__(self, database_path):
+        self.engine = sqlite3.connect(database_path)
+        self.blocks = OrderedDict()
+        self.blocks_limit = 4096 # max number of loaded blocks
+        
+        # get configs from database
+        configs = dict(self.engine.execute("SELECT * FROM meta"))
+        self.block_depth = int(configs['block_depth'])
+        self.chunk_depth = int(configs['chunk_depth'])
+        self.resolution = float(configs['resolution'])
+        self.semantic_class = configs['semantic_class']
+        self.semantic_count = int(configs['semantic_count'])
 
-    def is_classified(self) -> bool:
-        min_score = np.min(self.data)
-        return np.any(self.data != min_score)
+        # caculate related params
+        self.block_size = 2**(self.block_depth-1) * self.resolution
+        self.chunk_size = 2**(self.block_depth + self.chunk_depth-2) * self.resolution
+        self.map_size = self.block_size * 2**20
+        self.map_origin = np.array([0, 0, 0], dtype=float)
 
-    def __str__(self) -> str:
-        return str(self.data)
+    def __del__(self):
+        self.engine.close()
 
-class SBKIOctoMapBlock:
-    def __init__(self, block_depth):
-        self.nodes = []
-        self.block_depth = block_depth
+    def loc_to_block(self, position):
+        """
+        Convert position (x,y,z) to block index (ix,iy,iz)
+        """
+        return (np.array(position, dtype='f4') / self.block_size + 524288.5).astype('u8')
+        # return np.bitwise_or.reduce(pos_int << (np.arange(3, dtype="u8") * 20), axis=-1)
 
-    def __hash__(self) -> int:
-        return hash(tuple(hash(n) for n in self.nodes))
+    def load_block(self, key_xyz):
+        """
+        Load a block into the cache. key_xyz should be a singe morton key.
 
-    def thash(self, tol=1e-9) -> int:
-        return hash(tuple(n.thash(tol) for n in self.nodes))
+        Currently all chunks are loaded from the x0y0z0 table
+        """
+        if key_xyz in self.blocks:
+            return self.blocks[key_xyz]
 
-    @property
-    def leafs(self):
-        pos = (8 ** (self.block_depth - 1) - 1) // 7
-        return self.nodes[pos:]
+        table = "x0y0z0"
+        result = self.engine.execute("SELECT last_update, data FROM '%s' WHERE hashkey = %d;" % (table, key_xyz)).fetchall()
+        if not result:
+            return None
 
-    def __str__(self) -> str:
-        return '[' + '\n'.join([(str(n) if n.is_classified() else '<>') for n in self.nodes]) + ']'
+        last_update, data = result[0]
+        def parse_node(data):
+            if data is None:
+                return None
 
-class SBKIOctoMap:
-    def __init__(self):
-        self.resolution = None
-        self.block_depth = None
-        self.num_class = 0
-        self.blocks = {}
+            arrtype = data.code - SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE
+            if arrtype == 1:
+                (state, sem, psum, pfree, psem) = struct.unpack(">BBfff", data.data)
+                semarr = np.array([pfree] + [psem if i == sem else (psum-pfree-psem)/(self.semantic_count-2)
+                                for i in range(1, self.semantic_count)], dtype="f4")
+                return Node(last_update, state, semarr)
+            elif arrtype == 2:
+                (state, sem, psum, psem) = struct.unpack(">BBff", data.data)
+                semarr = np.array([psem if i == sem else (psum-psem)/(self.semantic_count-1)
+                                for i in range(self.semantic_count)], dtype="f4")
+                return Node(last_update, state, semarr)
+            else:
+                raise NotImplementedError("only node type 1,2 is supported right now, get %d" % arrtype)
 
-    @classmethod
-    def load(cls, map_path):
-        m = cls()
-        with open(map_path, "rb") as fin:
-            data = msgpack.unpack(fin, strict_map_key=False)
-        m.resolution, m.block_depth, m.num_class, blocks = data
 
-        for k, nodes in blocks.items():
-            octo_block = SBKIOctoMapBlock(m.block_depth)
-            for n in nodes:
-                octo_node = SBKIOctoMapNode()
-                assert n.code == SEMANTIC_OCTREE_NODE_MSGPACK_EXT_TYPE
-                octo_node.data = np.frombuffer(n.data, dtype='>f4')
-                octo_block.nodes.append(octo_node)
-            m.blocks[k] = octo_block
-        return m
+        if len(self.blocks) == self.blocks_limit:
+            self.blocks.popitem()
+        self.blocks[key_xyz] = [parse_node(n) for n in msgpack.unpackb(data)]
+        return self.blocks[key_xyz]
 
-    def __hash__(self) -> int:
-        blocks_hash = hash(frozenset((k, v) for k, v in self.blocks.items()))
-        return hash((self.resolution, self.block_depth, self.num_class, blocks_hash))
+    def query_block(self, pos, key):
+        """
+        :param pos: N*3 position
+        :param key: (ix, iy, iz)
+        """
+        morton_key = morton(key)
+        if morton_key not in self.blocks:
+            return None
 
-    def thash(self, tol=1e-8) -> int: # hash with tolerance
-        assert tol > 0
-        blocks_hash = hash(frozenset((k, v.thash(tol)) for k, v in self.blocks.items()))
-        return hash((self.resolution, self.block_depth, self.num_class, blocks_hash))
+        block_center = (np.array(key, dtype="f4") - 524288) * self.block_size
+        cell_count = 2 ** (self.block_depth - 1)
+        pos = ((pos - block_center[np.newaxis, :]) / self.resolution + cell_count / 2).astype(int)
 
-def compare_maps(m1, m2, tol=None):
-    if tol is None:
-        h1, h2 = hash(m1), hash(m2)
-    else:
-        h1, h2 = m1.thash(tol), m2.thash(tol)
+        if np.any(pos < 0) or np.any(pos > cell_count):
+            raise ValueError("The position is not in this block")
 
-    if h1 == h2:
-        print("Maps are equal.")
-        return
-    else:
-        print("Maps are not equal!!! (by hash)")
+        index = morton(np.fliplr(pos.astype('u8'))) # _search_impl
+        index += 8**(self.block_depth-1) // 7 # depth_index_to_index
 
-    if m1.resolution != m2.resolution:
-        print("> resolution:", m1.resolution, m2.resolution)
-        return
-    if m1.block_depth != m2.block_depth:
-        print("> block_depth:", m1.block_depth, m2.block_depth)
-        return
-    if len(m1.blocks) != len(m2.blocks):
-        print("> Block counts:", len(m1.blocks), len(m2.blocks))
-        return
+        block = self.blocks[morton_key]
+        return [np.argmax(block[i].probs) if block[i] else 0 for i in index]
 
-    bk1 = hash(frozenset(m1.blocks.keys()))
-    bk2 = hash(frozenset(m2.blocks.keys()))
-    if bk1 != bk2:
-        print("> Block keys are different!!")
-        return
+    def query(self, position):
+        """
+        Query the states at the given positions (N*3)
+        """
+        position = np.asarray(position)
+        if position.ndim == 1:
+            position = np.array([position])
 
-    if tol is None:
-        bh1 = {k: hash(v) for k, v in m1.blocks.items()}
-        bh2 = {k: hash(v) for k, v in m2.blocks.items()}
-    else:
-        bh1 = {k: v.thash(tol) for k, v in m1.blocks.items()}
-        bh2 = {k: v.thash(tol) for k, v in m2.blocks.items()}
-    mismatch = [k for k, v in bh1.items() if bh2[k] != v]
-    mismatch_items = []
-    for k in mismatch:
-        for i, (b, bref) in enumerate(zip(m.blocks[k].nodes, mref.blocks[k].nodes)):
-            if (hash(b) == hash(bref) if tol is None else b.thash(tol) == bref.thash(tol)):
-                continue
+        block_pos = self.loc_to_block(position)
+        block_id = morton(block_pos) # convert to morton id
+        sem_values = np.empty_like(block_id)
+        
+        # find unique chunk_ids
+        for key, kid in zip(*np.unique(block_id, return_index=True)):
+            self.load_block(key)
+            imask = block_id == key
+            sem_values[imask] = self.query_block(position[imask], block_pos[kid]) or 0
 
-            idiff, = np.where(np.abs(b.data - bref.data) > tol)
-            if len(idiff) > 0:
-                for j, d, dref in zip(idiff, b.data[idiff], bref.data[idiff]):
-                    mismatch_items.append((k, i, j, d, dref, abs(d-dref) / dref))
-
-    if not mismatch_items:
-        print("Maps are actually equal. (by comparison)")
-        return
-
-    print("> Top 10 mismatches:")
-    mismatch_items.sort(key = lambda item: -item[-1]) # sort by error rate
-    for k, i, j, d, dref, r in mismatch_items[:10]:
-        print(f"  Block {k}, node {i}, {j}th data: {d} <-> {dref} (err: {np.format_float_scientific(r, precision=3)})")
-    print("> Mismatch rate", len(mismatch), '/', len(m.blocks))
-
-if __name__ == "__main__":
-    # import fire
-    # fire.Fire(dict(hash=map_hash))
-    m = SBKIOctoMap.load("map_dump.bin")
-    l_car = 1
-    def collect_label(leafs, l):
-        return np.sum(np.argmax(np.array([l.data for l in leafs]), axis=1) == l)
-    car_nodes = [collect_label(b.leafs, l_car) for k, b in m.blocks.items()]
-    print("Car nodes:", sum(car_nodes))
-    # mref = SBKIOctoMap.load("/home/jacobz/Coding/ws/src/map_dump_ref.bin")
-    # compare_maps(m, mref, 1e-4)
+        return sem_values

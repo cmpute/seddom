@@ -52,6 +52,7 @@ namespace seddom
         unsigned short iy = static_cast<unsigned short>(yy);
         unsigned short iz = static_cast<unsigned short>(zz);
 
+        // TODO: this part is basically calculating Morton code
         unsigned short index = 0;
         for (int i = 0; i < MaxDepth; i++)
         {
