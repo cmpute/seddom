@@ -4,11 +4,19 @@ from map import SeddoMap
 import tqdm
 import numpy as np
 
-i = 0
 loader = KittiOdometryLoader("/media/jacobz/BtrfsTest", inzip=True)
-cloud = pcl.load_pcd("/home/jacobz/Datasets/kitti-parsed/kitti-odometry_04.bag.%04d.pcd" % i)
 dmap = SeddoMap("/home/jacobz/temp_map.db3")
-pred = dmap.query(cloud.xyz)
-print(np.unique(pred))
-gt = loader.annotation_3dpoints((4, i))['semantic']
-print(np.unique(gt))
+
+seq_id = 4
+tp = fn = 0
+for i in tqdm.trange(loader.sequence_sizes[seq_id]):
+    cloud = pcl.load_pcd("/home/jacobz/Datasets/kitti-parsed/kitti-odometry_04.bag.%04d.pcd" % i)
+    pred = dmap.query(cloud.xyz)
+    anno = loader.annotation_3dpoints((4, i))
+    moving = anno['moving']
+    gt = anno['semantic']
+
+    tp += np.sum(moving & (pred == 0))
+    fn += np.sum(moving & (pred != 0))
+
+print(tp, fn, tp/(tp+fn))
