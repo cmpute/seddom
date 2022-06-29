@@ -76,6 +76,9 @@ if (WITH_OPENMP)
   endif()
 endif()
 
+# enable/disable the following two flags if you encountered linking errors
+add_definitions(-DBOOST_SYSTEM_NO_DEPRECATED -DBOOST_ERROR_CODE_HEADER_ONLY)
+
 option(WITH_PROFILER "Build with profiler" ON)
 if (WITH_PROFILER)
     find_package(easy_profiler)
