@@ -2,7 +2,7 @@
 
 # Map configuration
 resolution: 0.3
-semantic_class: semantic_kitti # Type of semantic class, options: {semantic_kitti, nuscenes}
+semantic_class: semantic_kitti # Type of semantic class, options: {semantic_kitti, nuscenes, carla}
 random_samples_per_beam: -1
 free_resolution: -1 # Free space sampling resolution
 ds_resolution: 0.1 # Downsampling factor

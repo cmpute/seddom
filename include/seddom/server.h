@@ -23,6 +23,26 @@
 
 namespace seddom
 {
+    template<typename T>
+    void moveFromROSMsg(sensor_msgs::PointCloud2 &cloud, pcl::PointCloud<T> &pcl_cloud, std::string label_field = "label")
+    {
+        pcl::PCLPointCloud2 pcl_pc2;
+        pcl_conversions::moveToPCL(cloud, pcl_pc2);
+        pcl::MsgFieldMap field_map;
+
+        // change the field name to the given one
+        if (label_field != "label") {
+            for (auto &field : pcl_pc2.fields) {
+                if (field.name == label_field) {
+                    field.name = "label";
+                }
+            }
+        }
+    
+        pcl::createMapping<T>(pcl_pc2.fields, field_map);
+        pcl::fromPCLPointCloud2(pcl_pc2, pcl_cloud, field_map);
+    }
+
     template <typename SemanticClass, size_t BlockDepth>
     class SemanticOccupancyMapServer
     {
@@ -47,6 +67,7 @@ namespace seddom
             nh_private.param<std::string>("cloud_topic", _cloud_topic, _cloud_topic);
             nh_private.param<std::string>("visualize_topic", visualize_topic, visualize_topic);
             nh_private.param<std::string>("gridmap_topic", gridmap_topic, gridmap_topic);
+            nh_private.param<std::string>("label_field", _label_field, _label_field);
             nh_private.param<std::string>("map_frame_id", _map_frame_id, _map_frame_id);
             nh_private.param<std::string>("map_path", map_path, map_path);
             nh_private.param<std::string>("occlusion_handling", occlusion_handling, occlusion_handling);
@@ -142,7 +163,7 @@ namespace seddom
             pcl_ros::transformPointCloud(_map_frame_id, transform.transform, *cloud, cloud_map);
 
             PointCloudXYZL::Ptr pcl_cloud(new PointCloudXYZL());
-            pcl::fromROSMsg(cloud_map, *pcl_cloud);
+            seddom::moveFromROSMsg(cloud_map, *pcl_cloud, _label_field);
 
             if (_busy)
                 return;
@@ -213,7 +234,7 @@ namespace seddom
                     pcl_ros::transformPointCloud(_map_frame_id, transform.transform, *cloud, cloud_map);
 
                     PointCloudXYZL::Ptr pcl_cloud(new PointCloudXYZL());
-                    pcl::fromROSMsg(cloud_map, *pcl_cloud);
+                    seddom::moveFromROSMsg(cloud_map, *pcl_cloud, _label_field);
 
                     run_point_cloud(pcl_cloud, origin);
                     ros::spinOnce();
@@ -223,7 +244,7 @@ namespace seddom
             }
 
             bag.close();
-            ROS_INFO("ROS bag process completed.");
+            ROS_INFO("ROS bag process completed, remaining clouds: %ld", cloud_queue.size());
         }
 
         void run_point_cloud(PointCloudXYZL::ConstPtr pcl_cloud, const pcl::PointXYZ &origin)
@@ -281,6 +302,7 @@ namespace seddom
         ros::Subscriber _cloud_sub;
         ros::ServiceServer _dump_service;
         std::string _cloud_topic = "/semantic_points";
+        std::string _label_field = "label";
         std::unique_ptr<seddom::OctomapVisualizer> _visualizer;
         std::unique_ptr<seddom::OctomapStorage> _storage;
         std::unique_ptr<seddom::HeightMapGenerator> _zmap_generator;

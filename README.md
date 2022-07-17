@@ -31,6 +31,8 @@ catkin_ws$ source ~/catkin_ws/devel/setup.bash
 $ roslaunch seddom toy_example_node.launch
 ```
 
+There're also other demos originated from the original BKISemantic mapping repo.
+
 <details>
 
 <summary> Semantic Mapping using KITTI dataset </summary>

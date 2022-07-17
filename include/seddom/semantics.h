@@ -14,9 +14,8 @@ namespace seddom
 
     // TODO: the unlabelled category is not the same as "free"
 
-    class ToyDataset
+    struct ToyDataset
     {
-    public:
         static constexpr size_t NumClass = 5;
         static RGB getColor(int semantic)
         {
@@ -38,9 +37,8 @@ namespace seddom
         }
     };
 
-    class SemanticKITTI
+    struct SemanticKITTI
     {
-    public:
         static constexpr size_t NumClass = 20;
         static RGB getColor(int semantic)
         {
@@ -92,9 +90,8 @@ namespace seddom
         }
     };
 
-    class NCLT
+    struct NCLT
     {
-    public:
         static constexpr size_t NumClass = 14;
         static RGB getColor(int semantic)
         {
@@ -139,9 +136,8 @@ namespace seddom
      * paradigm for autonomous driving." 2015 IEEE Winter Conference on
      * Applications of Computer Vision. IEEE, 2015.
      */
-    class KITTI
+    struct KITTI
     {
-    public:
         static constexpr size_t NumClass = 12;
         static RGB getColor(int semantic)
         {
@@ -177,9 +173,8 @@ namespace seddom
         }
     };
 
-    class Nuscenes
+    struct Nuscenes
     {
-    public:
         static constexpr size_t NumClass = 17;
         static RGB getColor(int semantic)
         {
@@ -221,6 +216,66 @@ namespace seddom
                 return _scolor3(222, 184, 135);
             case 16: // vegetation
                 return _scolor3(0,   175, 0);
+            }
+        }
+    };
+
+    // reference: https://carla.readthedocs.io/en/latest/ref_sensors/#semantic-segmentation-camera
+    struct Carla
+    {
+        static constexpr size_t NumClass = 23;
+        static RGB getColor(int semantic)
+        {
+            assert(0 <= semantic && semantic < NumClass && "Invalid semantic value!");
+            switch (semantic)
+            {
+            default:
+            case 0: // Unlabeled
+                return _color_ignore;
+            case 1: // Building
+                return _scolor3(70,  70,  70);
+            case 2: // Fence
+                return _scolor3(100, 40,  40);
+            case 3: // Other
+                return _scolor3(55,  90,  80);
+            case 4: // Pedestrian
+                return _scolor3(220, 20,  60);
+            case 5: // Pole
+                return _scolor3(153, 153, 153);
+            case 6: // RoadLine
+                return _scolor3(157, 234, 50);
+            case 7: // Road
+                return _scolor3(128, 64,  128);
+            case 8: // SideWalk
+                return _scolor3(244, 64,  128);
+            case 9: // Vegetation
+                return _scolor3(107, 142, 35);
+            case 10: // Vehicles
+                return _scolor3(0,   0,   142);
+            case 11: // Wall
+                return _scolor3(102, 102, 156);
+            case 12: // TrafficSign
+                return _scolor3(175, 0,   75);
+            case 13: // Sky
+                return _scolor3(70,  130, 180);
+            case 14: // Ground
+                return _scolor3(81,  0,   81);
+            case 15: // Bridge
+                return _scolor3(150, 100, 100);
+            case 16: // RailTrack
+                return _scolor3(230, 150, 140);
+            case 17: // GuardRail
+                return _scolor3(180, 165, 180);
+            case 18: // TrafficLight
+                return _scolor3(250, 170, 30);
+            case 19: // Static
+                return _scolor3(110, 190, 160);
+            case 20: // Dynamic
+                return _scolor3(170, 120, 50);
+            case 21: // Water
+                return _scolor3(45,  60,  150);
+            case 22: // Terrain
+                return _scolor3(145, 170, 100);
             }
         }
     };

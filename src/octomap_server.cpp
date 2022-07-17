@@ -5,6 +5,7 @@
 constexpr int BlockDepth = 3;
 using NuscenesMap = seddom::SemanticOccupancyMapServer<seddom::Nuscenes, BlockDepth>;
 using SemanticKITTIMap = seddom::SemanticOccupancyMapServer<seddom::SemanticKITTI, BlockDepth>;
+using CarlaMap = seddom::SemanticOccupancyMapServer<seddom::Carla, BlockDepth>;
 
 int main(int argc, char **argv)
 {
@@ -27,6 +28,13 @@ int main(int argc, char **argv)
     else if (semclass == "nuscenes")
     {
         NuscenesMap server(nh, nh_private);
+        if (!bag_path.empty())
+            server.run_bag(bag_path);
+        ros::spin();
+    }
+    else if (semclass == "carla")
+    {
+        CarlaMap server(nh, nh_private);
         if (!bag_path.empty())
             server.run_bag(bag_path);
         ros::spin();
