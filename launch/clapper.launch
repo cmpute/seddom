@@ -15,6 +15,6 @@
         <param name="gridmap_topic" value="/grid_map"/>
         <param name="bag_path" value="$(arg data_path)" unless="$(arg online)"/>
         <param name="map_path" value="/home/jacobz/temp_map.db3"/>
-        <rosparam file="$(arg pkg)/config/clapper.yaml" command="load" />
+        <rosparam file="$(arg pkg)/config/carla.yaml" command="load" />
     </node>
 </launch>

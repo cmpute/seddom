@@ -114,15 +114,15 @@ namespace seddom
             _dump_service = nh_private.advertiseService("dump_map", &SemanticOccupancyMapServer::dump_map_callback, this);
 
             ROS_INFO_STREAM("Parameters:" << std::endl
-                                          << "block_depth: " << BlockDepth << std::endl
-                                          << "chunk_depth: " << chunk_depth << std::endl
-                                          << "sf2: " << sf2 << std::endl
-                                          << "ell: " << ell << std::endl
-                                          << "prior:" << prior << std::endl
-                                          << "resolution: " << resolution << std::endl
-                                          << "free_resolution: " << _free_resolution << std::endl
-                                          << "ds_resolution: " << _ds_resolution << std::endl
-                                          << "max_range: " << max_range << std::endl);
+                << "block_depth: " << BlockDepth << std::endl
+                << "chunk_depth: " << chunk_depth << std::endl
+                << "sf2: " << sf2 << std::endl
+                << "ell: " << ell << std::endl
+                << "prior: " << prior << std::endl
+                << "resolution: " << resolution << std::endl
+                << "free_resolution: " << _free_resolution << std::endl
+                << "ds_resolution: " << _ds_resolution << std::endl
+                << "max_range: " << max_range << std::endl);
 
             if (!map_path.empty())
             {
