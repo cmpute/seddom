@@ -109,7 +109,7 @@ namespace seddom
             if (!visualize_topic.empty())
                 _visualizer = std::make_unique<seddom::OctomapVisualizer>(nh, visualize_topic, _map_frame_id);
             if (!gridmap_topic.empty())
-                _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, "odom",
+                _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, _map_frame_id,
                     gridmap_range, _map->resolution(), oh); // TODO: select correct frame_id for the generated gridmap
             _dump_service = nh_private.advertiseService("dump_map", &SemanticOccupancyMapServer::dump_map_callback, this);
 
@@ -143,48 +143,53 @@ namespace seddom
 
         void cloud_callback(const sensor_msgs::PointCloud2ConstPtr &cloud)
         {
-            geometry_msgs::TransformStamped transform;
-            try
-            {
-                transform = _tfbuffer.lookupTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp);
-            }
-            catch (tf::TransformException ex)
-            {
-                ROS_ERROR("%s", ex.what());
-                return;
-            }
-
-            pcl::PointXYZ origin(transform.transform.translation.x,
-                                 transform.transform.translation.y,
-                                 transform.transform.translation.z);
-            ROS_DEBUG("Point cloud origin %.3f, %.3f, %3f", origin.x, origin.y, origin.z);
-
-            sensor_msgs::PointCloud2 cloud_map;
-            pcl_ros::transformPointCloud(_map_frame_id, transform.transform, *cloud, cloud_map);
-
-            PointCloudXYZL::Ptr pcl_cloud(new PointCloudXYZL());
-            seddom::moveFromROSMsg(cloud_map, *pcl_cloud, _label_field);
-
             if (_busy)
-                return;
-            else
-                if (_worker.joinable())
-                    _worker.join();
+                return; // don't accept new cloud when there is existing job
+            _cloud_queue.push_back(cloud);
 
-            _worker = std::thread([this, origin, pcl_cloud]{
-                _busy = true;
-                run_point_cloud(pcl_cloud, origin);
-                _busy = false;
-            });
+            // Wait for the transform to be updated before processing the point clouds
+            if (_tfbuffer.canTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp))
+            {
+                try
+                {
+                    // process cloud
+                    _cloud_queue.pop_front();
+                    auto transform = _tfbuffer.lookupTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp);
+
+                    pcl::PointXYZ origin(transform.transform.translation.x,
+                                        transform.transform.translation.y,
+                                        transform.transform.translation.z);
+                    ROS_DEBUG("Point cloud origin %.3f, %.3f, %3f", origin.x, origin.y, origin.z);
+
+                    sensor_msgs::PointCloud2 cloud_map;
+                    pcl_ros::transformPointCloud(_map_frame_id, transform.transform, *cloud, cloud_map);
+
+                    PointCloudXYZL::Ptr pcl_cloud(new PointCloudXYZL());
+                    seddom::moveFromROSMsg(cloud_map, *pcl_cloud, _label_field);
+
+                    if (_worker.joinable())
+                        _worker.join();
+                    _worker = std::thread([this, origin, pcl_cloud]{
+                        _busy = true;
+                        run_point_cloud(pcl_cloud, origin);
+                        _busy = false;
+                    });
+                }
+                catch (tf::TransformException ex)
+                {
+                    ROS_ERROR("%s", ex.what());
+                    return;
+                }
+            } else {
+                // TODO: discard very old messages
+            }
         }
 
         // this function is used to parse the data directly from a ROS bag
         void run_bag(const std::string &bag_path)
         {
-            tf2_ros::Buffer tfbuffer;
             rosbag::Bag bag;
             bag.open(bag_path);
-            std::deque<sensor_msgs::PointCloud2Ptr> cloud_queue;
 
             if (_storage != nullptr) // pre-load existing map
                 _storage->load_around(*_map, pcl::PointXYZ(0,0,0));
@@ -193,37 +198,37 @@ namespace seddom
             {
                 if (m.getTopic() == _cloud_topic)
                 {
-                    cloud_queue.push_back(m.instantiate<sensor_msgs::PointCloud2>());
+                    _cloud_queue.push_back(m.instantiate<sensor_msgs::PointCloud2>());
                 }
                 else if (m.getTopic() == "/tf_static")
                 {
                     _tf_static_pub.publish(m);
                     auto tfmsg = m.instantiate<tf2_msgs::TFMessage>();
                     for(int i = 0; i < tfmsg->transforms.size(); i++)
-                        tfbuffer.setTransform(tfmsg->transforms[i], "default", /*is_static*/ true);
+                        _tfbuffer.setTransform(tfmsg->transforms[i], "default", /*is_static*/ true);
                 }
                 else if (m.getTopic() == "/tf")
                 {
                     _tf_pub.publish(m);
                     auto tfmsg = m.instantiate<tf2_msgs::TFMessage>();
                     for(int i = 0; i < tfmsg->transforms.size(); i++)
-                        tfbuffer.setTransform(tfmsg->transforms[i], "default", /*is_static*/ false);
+                        _tfbuffer.setTransform(tfmsg->transforms[i], "default", /*is_static*/ false);
                 }
 
-                if (cloud_queue.size() == 0)
+                if (_cloud_queue.size() == 0)
                     continue;
-                sensor_msgs::PointCloud2Ptr cloud = cloud_queue.front();
+                sensor_msgs::PointCloud2ConstPtr cloud = _cloud_queue.front();
                 // Wait for the transform to be updated before processing the point clouds
-                if (tfbuffer.canTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp))
+                if (_tfbuffer.canTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp))
                 {
                     // process cloud
-                    cloud_queue.pop_front();
+                    _cloud_queue.pop_front();
 #ifndef NDEBUG
                     _cloud_pub.publish(cloud);
 #endif
 
                     geometry_msgs::TransformStamped transform;
-                    transform = tfbuffer.lookupTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp);
+                    transform = _tfbuffer.lookupTransform(_map_frame_id, cloud->header.frame_id, cloud->header.stamp);
 
                     pcl::PointXYZ origin(transform.transform.translation.x,
                                          transform.transform.translation.y,
@@ -244,7 +249,7 @@ namespace seddom
             }
 
             bag.close();
-            ROS_INFO("ROS bag process completed, remaining clouds: %ld", cloud_queue.size());
+            ROS_INFO("ROS bag process completed, remaining clouds: %ld", _cloud_queue.size());
         }
 
         void run_point_cloud(PointCloudXYZL::ConstPtr pcl_cloud, const pcl::PointXYZ &origin)
@@ -285,6 +290,8 @@ namespace seddom
 
         ~SemanticOccupancyMapServer()
         {
+            if (_worker.joinable())
+                _worker.join();
             if (_storage != nullptr)
             {
                 std::cout << "Save all map blocks..." << std::endl;
@@ -307,6 +314,7 @@ namespace seddom
         std::unique_ptr<seddom::OctomapStorage> _storage;
         std::unique_ptr<seddom::HeightMapGenerator> _zmap_generator;
         ros::Publisher _tf_pub, _tf_static_pub, _cloud_pub;
+        std::deque<sensor_msgs::PointCloud2ConstPtr> _cloud_queue;
 
         std::string _map_frame_id = "odom";
         int _samples_per_beam = -1;
