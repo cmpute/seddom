@@ -42,11 +42,17 @@ constexpr double PI = 3.141592653589793238463;
 constexpr double DPI = 6.283185307179586476925;
 constexpr double SQ3 = 1.732050807568877293527;
 
-#include <iostream>
-#ifndef NDEBUG
-    #define DEBUG_WRITE(s) std::cout << "DEBUG: " << s << std::endl;
+#ifdef ROS_VERSION
+    #define DEBUG_WRITE(s) ROS_DEBUG_STREAM(s)
+    #define INFO_WRITE(s) ROS_INFO_STREAM(s)
+    #define WARN_WRITE(s) ROS_INFO_STREAM(s)
 #else
-    #define DEBUG_WRITE(s)
+    #include <iostream>
+    #ifndef NDEBUG
+        #define DEBUG_WRITE(s) std::cout << "DEBUG: " << s << std::endl;
+    #else
+        #define DEBUG_WRITE(s)
+    #endif
+    #define INFO_WRITE(s) std::cout << "INFO: " << s << std::endl;
+    #define WARN_WRITE(s) std::cout << "WARN: " << s << std::endl;
 #endif
-#define INFO_WRITE(s) std::cout << "INFO: " << s << std::endl;
-#define WARN_WRITE(s) std::cout << "WARN: " << s << std::endl;

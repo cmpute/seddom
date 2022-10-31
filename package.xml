@@ -44,7 +44,6 @@
   <build_depend>geometry_msgs</build_depend>
   <build_depend>pcl_ros</build_depend>
   <build_depend>roscpp</build_depend>
-  <build_depend>octomap_ros</build_depend>
   <build_depend>grid_map_ros</build_depend>
   <build_depend>visualization_msgs</build_depend>
   <build_depend>nav_msgs</build_depend>
@@ -52,7 +51,6 @@
   <run_depend>geometry_msgs</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>roscpp</run_depend>
-  <run_depend>octomap_ros</run_depend>
   <run_depend>grid_map_ros</run_depend>
   <run_depend>visualization_msgs</run_depend>
   <run_depend>nav_msgs</run_depend>

@@ -17,12 +17,12 @@ namespace seddom
     const std::string LAYER_OCCLUDED_HEIGHT = "occluded_height"; // height of occluded blocks under sensor height
     const std::string LAYER_OCCLUDED_HEIGHT_FULL = "occluded_height_full"; // height of occluded blocks
     const std::string LAYER_GRID_STATUS = "status"; // state for each grid, see the constants below
-    const std::string LAYER_GRID_STATUS_HISTORY = "status_history"; // time from current to last update time in seconds
+    const std::string LAYER_GRID_STATUS_HISTORY = "status_history"; // time from last change in seconds
 
     const float STATUS_UNKNOWN = NAN;
     const float STATUS_BLOCKED = 1.;
     const float STATUS_FREE = -1.;
-    const float STATUS_OCCLUDED_UNKNOWN = 0;
+    const float STATUS_OCCLUDED_UNKNOWN = 0.;
     const float STATUS_OCCLUDED_BLOCKED = 2.;
     const float STATUS_OCCLUDED_FREE = -2.;
 

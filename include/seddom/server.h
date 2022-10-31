@@ -302,18 +302,18 @@ namespace seddom
     protected:
         ros::NodeHandle _nh;
         ros::NodeHandle _nh_private;
+        ros::Subscriber _cloud_sub;
+        ros::ServiceServer _dump_service;
+        ros::Publisher _tf_pub, _tf_static_pub, _cloud_pub;
 
         std::shared_ptr<MapType> _map;
         tf2_ros::Buffer _tfbuffer;
         tf2_ros::TransformListener _listener;
-        ros::Subscriber _cloud_sub;
-        ros::ServiceServer _dump_service;
         std::string _cloud_topic = "/semantic_points";
         std::string _label_field = "label";
         std::unique_ptr<seddom::OctomapVisualizer> _visualizer;
         std::unique_ptr<seddom::OctomapStorage> _storage;
         std::unique_ptr<seddom::HeightMapGenerator> _zmap_generator;
-        ros::Publisher _tf_pub, _tf_static_pub, _cloud_pub;
         std::deque<sensor_msgs::PointCloud2ConstPtr> _cloud_queue;
 
         std::string _map_frame_id = "odom";
