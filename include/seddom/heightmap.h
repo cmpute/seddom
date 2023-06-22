@@ -25,6 +25,7 @@ namespace seddom
     const float STATUS_OCCLUDED_UNKNOWN = 0.;
     const float STATUS_OCCLUDED_BLOCKED = 2.;
     const float STATUS_OCCLUDED_FREE = -2.;
+    const float OCCLUSION_HEIGHT_MARGIN = 1.; // occlusion height must be higher than ground height by this margin to be considered as occluded
 
     // TODO: also calculate occlusion for dynamic objects
     // mode 1: don't accept detected objects and directly consider the measured points of the objects
@@ -72,6 +73,7 @@ namespace seddom
             pcl::PointXYZ latest_pos = map.get_position();
             _zmap.move(grid_map::Position(latest_pos.x, latest_pos.y));
             _zmap[LAYER_OCCLUDED_HEIGHT].setConstant(NAN); // reset occlusion height every time
+            _zmap[LAYER_GRID_STATUS_HISTORY].setConstant(1e5); // the history of the grid status is set to a very large value by default
             if (_occlusion_handling == OcclusionHandling::ALL) _zmap[LAYER_OCCLUDED_HEIGHT_FULL].setConstant(NAN);
 
             for (auto nit = map.cbegin_leaf(); nit != map.cend_leaf(); nit ++)
@@ -80,6 +82,9 @@ namespace seddom
                 grid_map::Position position(loc.x, loc.y);
                 if (!_zmap.isInside(position)) // skip blocks not in ROI
                     continue;
+
+                std::chrono::system_clock::duration history = map.get_stamp() - nit->get_stamp();
+                float history_secs = std::chrono::duration_cast<std::chrono::seconds>(history).count();
 
                 if (nit->is_occupied())
                     if (loc.z < (latest_pos.z + _resolution)) // consider one more block
@@ -94,8 +99,10 @@ namespace seddom
 
                         // occluded height is at least ground height
                         float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position);
-                        if (std::isnan(old_occ) || loc.z > old_occ)
+                        if (std::isnan(old_occ) || loc.z > old_occ) {
                             _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position) = loc.z;
+                            _zmap.atPosition(LAYER_GRID_STATUS_HISTORY, position) = history_secs;
+                        }
                     }
                     if (loc.z > (latest_pos.z - _resolution))
                     {
@@ -114,16 +121,20 @@ namespace seddom
                     if (_occlusion_handling == OcclusionHandling::ALL)
                     {
                         float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position);
-                        if (std::isnan(old_occ) || loc.z > old_occ)
+                        if (std::isnan(old_occ) || loc.z > old_occ) {
                             _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position) = loc.z;
+                            _zmap.atPosition(LAYER_GRID_STATUS_HISTORY, position) = history_secs;
+                        }
                     }
 
                     // update occluded height
                     if (nit->is_classified())
                     {
                         float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position);
-                        if (std::isnan(old_occ) || loc.z > old_occ)
+                        if (std::isnan(old_occ) || loc.z > old_occ) {
                             _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position) = loc.z;
+                            _zmap.atPosition(LAYER_GRID_STATUS_HISTORY, position) = history_secs;
+                        }
                     }
                 }
             }
@@ -138,8 +149,9 @@ namespace seddom
                         continue;
 
                     float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position);
-                    if (std::isnan(old_occ) || loc.z > old_occ)
+                    if (std::isnan(old_occ) || loc.z > old_occ) {
                         _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position) = loc.z;
+                    }
                 }
             }
 
@@ -155,7 +167,7 @@ namespace seddom
                     continue;
                 }
 
-                if (oheight > gheight) // this condition implies oheight is not nan
+                if (oheight > gheight + OCCLUSION_HEIGHT_MARGIN) // this condition implies oheight is not nan
                 {
                     if (gheight > latest_pos.z)
                         _zmap.at(LAYER_GRID_STATUS, *git) = STATUS_OCCLUDED_BLOCKED;
