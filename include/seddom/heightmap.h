@@ -25,6 +25,8 @@ namespace seddom
     const float STATUS_OCCLUDED_UNKNOWN = 0.;
     const float STATUS_OCCLUDED_BLOCKED = 2.;
     const float STATUS_OCCLUDED_FREE = -2.;
+
+    const float CEILING_HEIGHT_OFFSET = -0.4; // The elevation of the sensor 
     const float OCCLUSION_HEIGHT_MARGIN = 1.; // occlusion height must be higher than ground height by this margin to be considered as occluded
 
     // TODO: also calculate occlusion for dynamic objects
@@ -66,11 +68,18 @@ namespace seddom
                 map_resolution * 1.001
             );
         }
+
+        void update_history(const grid_map::Position &pos, float history_secs) {
+            float& old_history = _zmap.atPosition(LAYER_GRID_STATUS_HISTORY, pos);
+            old_history = std::min(old_history, history_secs);
+        }
         
         template <typename SemanticClass, size_t BlockDepth>
         void publish_octomap(const SemanticBKIOctoMap<SemanticClass, BlockDepth>& map)
         {
             pcl::PointXYZ latest_pos = map.get_position();
+            float ego_height = latest_pos.z + CEILING_HEIGHT_OFFSET;
+
             _zmap.move(grid_map::Position(latest_pos.x, latest_pos.y));
             _zmap[LAYER_OCCLUDED_HEIGHT].setConstant(NAN); // reset occlusion height every time
             _zmap[LAYER_GRID_STATUS_HISTORY].setConstant(1e5); // the history of the grid status is set to a very large value by default
@@ -87,7 +96,7 @@ namespace seddom
                 float history_secs = std::chrono::duration_cast<std::chrono::seconds>(history).count();
 
                 if (nit->is_occupied())
-                    if (loc.z < (latest_pos.z + _resolution)) // consider one more block
+                    if (loc.z < (ego_height + _resolution / 2)) // consider one more block
                     {
                         // update ground height if the block is lower than sensor height
                         float old_value = _zmap.atPosition(LAYER_GROUND_ELEVATION, position);
@@ -102,9 +111,10 @@ namespace seddom
                         if (std::isnan(old_occ) || loc.z > old_occ) {
                             _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position) = loc.z;
                             _zmap.atPosition(LAYER_GRID_STATUS_HISTORY, position) = history_secs;
+                            update_history(position, history_secs);
                         }
                     }
-                    if (loc.z > (latest_pos.z - _resolution))
+                    if (loc.z > (ego_height - _resolution / 2))
                     {
                         // update ceiling height if the block is higher than sensor height
                         float old_value = _zmap.atPosition(LAYER_CEILING_HEIGHT, position);
@@ -123,7 +133,7 @@ namespace seddom
                         float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position);
                         if (std::isnan(old_occ) || loc.z > old_occ) {
                             _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position) = loc.z;
-                            _zmap.atPosition(LAYER_GRID_STATUS_HISTORY, position) = history_secs;
+                            update_history(position, history_secs);
                         }
                     }
 
@@ -133,7 +143,7 @@ namespace seddom
                         float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position);
                         if (std::isnan(old_occ) || loc.z > old_occ) {
                             _zmap.atPosition(LAYER_OCCLUDED_HEIGHT, position) = loc.z;
-                            _zmap.atPosition(LAYER_GRID_STATUS_HISTORY, position) = history_secs;
+                            update_history(position, history_secs);
                         }
                     }
                 }
@@ -144,6 +154,7 @@ namespace seddom
                 for (auto bkey : map.get_occluded_blocks())
                 {
                     pcl::PointXYZ loc = map.block_key_to_center(bkey);
+                    
                     grid_map::Position position(loc.x, loc.y);
                     if (!_zmap.isInside(position)) // skip blocks not in ROI
                         continue;
@@ -151,6 +162,7 @@ namespace seddom
                     float old_occ = _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position);
                     if (std::isnan(old_occ) || loc.z > old_occ) {
                         _zmap.atPosition(LAYER_OCCLUDED_HEIGHT_FULL, position) = loc.z;
+                        update_history(position, 0); // these blocks are calculated per frame, so assign a 0 history length
                     }
                 }
             }

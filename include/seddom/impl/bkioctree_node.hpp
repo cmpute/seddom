@@ -14,9 +14,6 @@ namespace seddom
     SaveFormat Semantics<NumClass>::save_format = SaveFormat::LABEL_WITH_DUAL_VAR;
 
     template <size_t NumClass>
-    SaveOptions Semantics<NumClass>::save_options = SaveOptions::ALL_BLOCKS;
-
-    template <size_t NumClass>
     typename Semantics<NumClass>::ClassVector
     Semantics<NumClass>::get_probs() const
     {

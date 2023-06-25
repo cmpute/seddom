@@ -6,6 +6,7 @@
 #include <parallel_hashmap/phmap.h>
 
 #include "bkioctomap.h"
+#include "bkioctree_node.h"
 
 namespace seddom
 {
@@ -55,6 +56,7 @@ namespace seddom
         bool _closed;
         float _active_range;
         phmap::flat_hash_set<ChunkHashKey> _tracked_chunks;
+        SaveOptions _save_options;
     };
 }
 

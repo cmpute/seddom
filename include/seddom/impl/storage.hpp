@@ -36,7 +36,7 @@ namespace seddom
     // };
 
     OctomapStorage::OctomapStorage(const std::string &database, float active_range)
-        : _closed(false), _active_range(active_range)
+        : _closed(false), _active_range(active_range), _save_options(SaveOptions::ALL_BLOCKS)
     {
         assert_ok(sqlite3_open(database.c_str(), &_db));
         exec_sql("PRAGMA page_size=16384;");
@@ -227,13 +227,15 @@ namespace seddom
             assert_ok(sqlite3_bind_int64(stmt, 2, timestamp));
             auto data = stream_out.str();
 
-            if (data.size() > (block_iter->second.node_count()+3)) // skip if all nodes are unknown
-            {
-                assert_ok(sqlite3_bind_blob(stmt, 3, data.c_str(), data.size(), NULL));
-
-                if ((ec = sqlite3_step(stmt)) != SQLITE_DONE)
-                    throw sqlite_exception(ec, sql_insert_block);
+            if (_save_options != SaveOptions::ALL_BLOCKS && data.size() > (block_iter->second.node_count()+3)) {
+                // skip if all nodes are unknown
+                continue;
             }
+
+            assert_ok(sqlite3_bind_blob(stmt, 3, data.c_str(), data.size(), NULL));
+            if ((ec = sqlite3_step(stmt)) != SQLITE_DONE)
+                throw sqlite_exception(ec, sql_insert_block);
+
             assert_ok(sqlite3_reset(stmt));
             map._blocks.erase(block_iter);
         }
