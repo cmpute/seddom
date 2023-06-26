@@ -17,7 +17,7 @@ namespace seddom
          * active_range: max range for sensor, if sensor can produce measurement beyond this range,
          *               unintended behavior will happen.
          */
-        OctomapStorage(const std::string &database, float active_range);
+        OctomapStorage(const std::string &database, float active_range, bool read_only);
         ~OctomapStorage();
         void close();
 
@@ -54,6 +54,7 @@ namespace seddom
 
         sqlite3 *_db;
         bool _closed;
+        bool _read_only;
         float _active_range;
         phmap::flat_hash_set<ChunkHashKey> _tracked_chunks;
         SaveOptions _save_options;

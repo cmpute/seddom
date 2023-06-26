@@ -72,6 +72,7 @@ namespace seddom
             nh_private.param<std::string>("map_path", map_path, map_path);
             nh_private.param<std::string>("occlusion_handling", occlusion_handling, occlusion_handling);
 
+            nh_private.param<bool>("read_only", _read_only, false);
             nh_private.param<float>("resolution", resolution, resolution);
             nh_private.param<int>("chunk_depth", chunk_depth, chunk_depth);
             nh_private.param<float>("gridmap_range", gridmap_range, gridmap_range);
@@ -96,7 +97,7 @@ namespace seddom
                 oh = OcclusionHandling::NONE;
             }
 
-            _map = std::make_shared<MapType>(oh, resolution, chunk_depth, sf2, ell, prior, max_range);
+            _map = std::make_shared<MapType>(oh, resolution, chunk_depth, sf2, ell, prior, max_range, _read_only);
             _cloud_sub = _nh.subscribe(_cloud_topic, 4, &SemanticOccupancyMapServer::cloud_callback, this);
 
             // these publisers are for messages from ros bag.
@@ -122,11 +123,12 @@ namespace seddom
                 << "resolution: " << resolution << std::endl
                 << "free_resolution: " << _free_resolution << std::endl
                 << "ds_resolution: " << _ds_resolution << std::endl
-                << "max_range: " << max_range << std::endl);
+                << "max_range: " << max_range << std::endl
+                << "read_only: " << _read_only << std::endl);
 
             if (!map_path.empty())
             {
-                _storage = std::make_unique<seddom::OctomapStorage>(map_path, /* active_range */ 100);
+                _storage = std::make_unique<seddom::OctomapStorage>(map_path, /* active_range */ 100, _read_only);
                 if (_storage->check_params(*_map))
                     ROS_INFO_STREAM("Database params are compatible.");
                 else
@@ -321,6 +323,7 @@ namespace seddom
         float _free_resolution = 10;
         float _ds_resolution = 0.3;
         bool _visualize = true;
+        bool _read_only = false;
 
         std::thread _worker;
         bool _busy = false;  // for thread executing

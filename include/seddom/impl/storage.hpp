@@ -35,8 +35,8 @@ namespace seddom
     //     }
     // };
 
-    OctomapStorage::OctomapStorage(const std::string &database, float active_range)
-        : _closed(false), _active_range(active_range), _save_options(SaveOptions::ALL_BLOCKS)
+    OctomapStorage::OctomapStorage(const std::string &database, float active_range, bool read_only)
+        : _closed(false), _active_range(active_range), _save_options(SaveOptions::ALL_BLOCKS), _read_only(read_only)
     {
         assert_ok(sqlite3_open(database.c_str(), &_db));
         exec_sql("PRAGMA page_size=16384;");
@@ -199,6 +199,8 @@ namespace seddom
     template <typename SemanticClass, size_t BlockDepth>
     void OctomapStorage::dump_chunk(SemanticBKIOctoMap<SemanticClass, BlockDepth> &map, ChunkHashKey key, const std::string &table_name)
     {
+        // DEBUG_WRITE("Dumping chunk " << key);
+
         // pre-calculate keys, TODO: move this step out sync loop to speed up
         std::vector<std::pair<BlockHashKey, ChunkHashKey>> blocks;
         blocks.reserve(map._blocks.size());
@@ -208,12 +210,12 @@ namespace seddom
         sqlite3_stmt *stmt;
         const std::string sql_insert_block = "REPLACE INTO '" + table_name +
                                              "' (hashkey, last_update, data) VALUES(?,?,?);";
-
-        // DEBUG_WRITE("Dumping chunk " << key);
-        auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(map._latest_time.time_since_epoch()).count();
-        assert_ok(sqlite3_prepare_v2(_db, sql_insert_block.c_str(), -1, &stmt, NULL));
+        if (!_read_only) {
+            assert_ok(sqlite3_prepare_v2(_db, sql_insert_block.c_str(), -1, &stmt, NULL));
+        }
 
         int ec;
+        auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(map._latest_time.time_since_epoch()).count();
         for (const auto &kit : blocks)
         {
             if (kit.second != key)
@@ -222,24 +224,31 @@ namespace seddom
             std::stringstream stream_out;
             auto block_iter = map._blocks.find(kit.first);
             assert(block_iter != map._blocks.end());
-            msgpack::pack(stream_out, block_iter->second);
-            assert_ok(sqlite3_bind_int64(stmt, 1, key_to_morton(kit.first)));
-            assert_ok(sqlite3_bind_int64(stmt, 2, timestamp));
-            auto data = stream_out.str();
 
-            if (_save_options != SaveOptions::ALL_BLOCKS && data.size() > (block_iter->second.node_count()+3)) {
-                // skip if all nodes are unknown
-                continue;
+            if (!_read_only) {
+                msgpack::pack(stream_out, block_iter->second);
+                assert_ok(sqlite3_bind_int64(stmt, 1, key_to_morton(kit.first)));
+                assert_ok(sqlite3_bind_int64(stmt, 2, timestamp));
+                auto data = stream_out.str();
+
+                if (_save_options != SaveOptions::ALL_BLOCKS && data.size() > (block_iter->second.node_count()+3)) {
+                    // skip if all nodes are unknown
+                    continue;
+                }
+
+                assert_ok(sqlite3_bind_blob(stmt, 3, data.c_str(), data.size(), NULL));
+                if ((ec = sqlite3_step(stmt)) != SQLITE_DONE)
+                    throw sqlite_exception(ec, sql_insert_block);
+
+                assert_ok(sqlite3_reset(stmt));
             }
 
-            assert_ok(sqlite3_bind_blob(stmt, 3, data.c_str(), data.size(), NULL));
-            if ((ec = sqlite3_step(stmt)) != SQLITE_DONE)
-                throw sqlite_exception(ec, sql_insert_block);
-
-            assert_ok(sqlite3_reset(stmt));
             map._blocks.erase(block_iter);
         }
-        assert_ok(sqlite3_finalize(stmt));
+
+        if (!_read_only) {
+            assert_ok(sqlite3_finalize(stmt));
+        }
 
         // remove chunks tracking
         map._chunks.erase(key);

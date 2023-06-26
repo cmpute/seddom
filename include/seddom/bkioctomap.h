@@ -80,7 +80,8 @@ namespace seddom
                                    1.0,   // sf2
                                    1.0,   // ell
                                    1.0f,  // prior
-                                   -1     // max_range
+                                   -1,    // max_range
+                                   false  // read_only
                                )
         {
         }
@@ -102,7 +103,8 @@ namespace seddom
             float sf2,
             float ell,
             float prior,
-            float max_range);
+            float max_range,
+            bool read_only);
 
         inline float resolution() const { return _resolution; }
         inline float block_depth() const { return BlockDepth; }
@@ -286,6 +288,7 @@ namespace seddom
                                                      float ds_resolution, int samples_per_beam);
 
         OcclusionHandling _occlusion_handling;
+        bool _read_only;
         float _resolution;
         float _block_size;
         size_t _chunk_depth;

@@ -90,6 +90,8 @@ namespace seddom
         /// Get variance of occupancy (uncertainty)
         ClassVector get_vars() const;
 
+        inline const ClassVector& get_logits() const { return logits; }
+
         /*
          * @brief Get occupancy state of the node.
          * @return occupancy state (see State).

@@ -71,7 +71,8 @@ namespace seddom
                                       float sf2,
                                       float ell,
                                       float prior,
-                                      float max_range)
+                                      float max_range,
+                                      bool read_only)
         : _occlusion_handling(occlusion_handling),
           _resolution(resolution),
           _chunk_depth(chunk_depth),
@@ -82,6 +83,7 @@ namespace seddom
           _min_range(0.5),
           _max_beams(500),
           _map_origin(0, 0, 0),
+          _read_only(read_only),
           _latest_time(std::chrono::system_clock::time_point(std::chrono::system_clock::duration(0)))
     {
         SemanticOctreeNode<NumClass>::prior = prior;
@@ -305,7 +307,7 @@ namespace seddom
         PointCloudXYZL::Ptr sampled_hits = downsample<pcl::PointXYZL>(cloud, ds_resolution);
 
         PROFILE_SPLIT("Inference hits");
-        if (sampled_hits->size() > 0)
+        if (sampled_hits->size() > 0 && !_read_only)
             inference_points<KType>(sampled_hits, timestamp);
 
         PROFILE_SPLIT("Create Rtree");
@@ -374,11 +376,25 @@ namespace seddom
 
             PROFILE_THREAD_SPLIT("Query rtree for free samples");
             Eigen::VectorXf ybar; // also used to indicate whether a node is associated with any beam
+            
             auto rit = beam_tree.qbegin(bgi::within(bq));
             if (rit == beam_tree.qend())
             {
                 // fill ybar with zeros if no association
                 ybar = Eigen::VectorXf::Zero(BlockType::leaf_count());
+            }
+            else if (_read_only)
+            {
+                // use the existing values to fill ybar in read only mode.
+                auto bit = _blocks.find(hkey);
+                if (bit == _blocks.end())
+                    continue;
+                BlockType &block = bit->second;
+
+                ybar = Eigen::VectorXf(BlockType::leaf_count());
+                int j = 0;
+                for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
+                    ybar[j] = leaf_it->get_logits()[0];
             }
             else
             {
