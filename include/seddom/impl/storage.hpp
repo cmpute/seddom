@@ -321,20 +321,23 @@ namespace seddom
         load_around(map, map._latest_position);
 
         // dump chunks outside active range
-        PROFILE_SPLIT("Dump chunks");
-        auto center_array = map._latest_position.getVector4fMap();
-        float threshold = _active_range + map.chunk_size();
-        assert_ok(sqlite3_exec(_db, "BEGIN TRANSACTION;", NULL, NULL, NULL));
-        for (ChunkHashKey ckey : map._chunks)
-        {
-            if (_tracked_chunks.find(ckey) == _tracked_chunks.end())
-                continue;
-            pcl::PointXYZ chunk_center = map.chunk_key_to_center(ckey);
-            float center_distance = (chunk_center.getVector4fMap() - center_array).norm();
-            if (center_distance > threshold)
-                dump_chunk(map, ckey, table_name);
+        // XXX: here we just skip the whole dumping stage if in read only mode to prevent frequent reloading for OTM
+        if (!_read_only) {
+            PROFILE_SPLIT("Dump chunks");
+            auto center_array = map._latest_position.getVector4fMap();
+            float threshold = _active_range + map.chunk_size();
+            assert_ok(sqlite3_exec(_db, "BEGIN TRANSACTION;", NULL, NULL, NULL));
+            for (ChunkHashKey ckey : map._chunks)
+            {
+                if (_tracked_chunks.find(ckey) == _tracked_chunks.end())
+                    continue;
+                pcl::PointXYZ chunk_center = map.chunk_key_to_center(ckey);
+                float center_distance = (chunk_center.getVector4fMap() - center_array).norm();
+                if (center_distance > threshold)
+                    dump_chunk(map, ckey, table_name);
+            }
+            assert_ok(sqlite3_exec(_db, "END TRANSACTION;", NULL, NULL, NULL));
         }
-        assert_ok(sqlite3_exec(_db, "END TRANSACTION;", NULL, NULL, NULL));
 
         #ifdef PROFILING
         INFO_WRITE("Updated database, size: " << get_size());

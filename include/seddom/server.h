@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <iostream>
 #include <memory>
@@ -108,7 +109,10 @@ namespace seddom
 #endif
 
             if (!visualize_topic.empty())
+            {
+                ROS_INFO("Visualizer created, topic: %s", visualize_topic.c_str());
                 _visualizer = std::make_unique<seddom::OctomapVisualizer>(nh, visualize_topic, _map_frame_id);
+            }
             if (!gridmap_topic.empty())
                 _zmap_generator = std::make_unique<seddom::HeightMapGenerator>(nh, gridmap_topic, _map_frame_id,
                     gridmap_range, _map->resolution(), oh); // TODO: select correct frame_id for the generated gridmap
@@ -128,7 +132,7 @@ namespace seddom
 
             if (!map_path.empty())
             {
-                _storage = std::make_unique<seddom::OctomapStorage>(map_path, /* active_range */ 100, _read_only);
+                _storage = std::make_unique<seddom::OctomapStorage>(map_path, /* active_range */ 300, _read_only);
                 if (_storage->check_params(*_map))
                     ROS_INFO_STREAM("Database params are compatible.");
                 else
@@ -256,7 +260,7 @@ namespace seddom
 
         void run_point_cloud(PointCloudXYZL::ConstPtr pcl_cloud, const pcl::PointXYZ &origin)
         {
-            ros::Time tstart = ros::Time::now();
+            auto tstart = std::chrono::system_clock::now();
             if (_free_resolution >= 0)
                 _map->template insert_pointcloud<seddom::KernelType::BGK>(pcl_cloud, origin, _ds_resolution, _free_resolution);
             else if (_samples_per_beam >= 0)
@@ -264,29 +268,33 @@ namespace seddom
             else
                 _map->template insert_pointcloud_pl<seddom::KernelType::SBGK>(pcl_cloud, origin, _ds_resolution);
 
-            ros::Time tend = ros::Time::now();
-            ROS_INFO("Inserted point cloud with %d points, takes %.2f ms", (int)pcl_cloud->size(), (tend - tstart).toSec() * 1000);
+            auto tend = std::chrono::system_clock::now();
+            ROS_INFO("Inserted point cloud with %d points, takes %ld ms", (int)pcl_cloud->size(),
+                std::chrono::duration_cast<std::chrono::milliseconds>(tend - tstart).count());
 
             if (_zmap_generator != nullptr)
             {
-                tstart = ros::Time::now();
+                tstart = std::chrono::system_clock::now();
                 _zmap_generator->publish_octomap<SemanticClass, BlockDepth>(*_map);
-                tend = ros::Time::now();
-                ROS_INFO("(1) Height map are generated in %.2f ms", (tend - tstart).toSec() * 1000);
+                tend = std::chrono::system_clock::now();
+                ROS_INFO("(1) Height map are generated in %ld ms",
+                    std::chrono::duration_cast<std::chrono::milliseconds>(tend - tstart).count());
             }
             if (_visualizer != nullptr)
             {
-                tstart = ros::Time::now();
+                tstart = std::chrono::system_clock::now();
                 _visualizer->publish_octomap<SemanticClass, BlockDepth, OctomapVisualizeMode::SEMANTICS>(*_map);
-                tend = ros::Time::now();
-                ROS_INFO("(2) 3D map markers are published in %.2f ms", (tend - tstart).toSec() * 1000);
+                tend = std::chrono::system_clock::now();
+                ROS_INFO("(2) 3D map markers are published in %ld ms",
+                    std::chrono::duration_cast<std::chrono::milliseconds>(tend - tstart).count());
             }
             if (_storage != nullptr)
             {
-                tstart = ros::Time::now();
+                tstart = std::chrono::system_clock::now();
                 _storage->sync(*_map);
-                tend = ros::Time::now();
-                ROS_INFO("(3) Map storage is synced in %.2f ms", (tend - tstart).toSec() * 1000);
+                tend = std::chrono::system_clock::now();
+                ROS_INFO("(3) Map storage is synced in %ld ms",
+                    std::chrono::duration_cast<std::chrono::milliseconds>(tend - tstart).count());
             }
         }
 
@@ -294,7 +302,7 @@ namespace seddom
         {
             if (_worker.joinable())
                 _worker.join();
-            if (_storage != nullptr)
+            if (_storage != nullptr && !_read_only)
             {
                 std::cout << "Save all map blocks..." << std::endl;
                 _storage->dump_all(*_map);
