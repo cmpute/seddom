@@ -383,19 +383,6 @@ namespace seddom
                 // fill ybar with zeros if no association
                 ybar = Eigen::VectorXf::Zero(BlockType::leaf_count());
             }
-            else if (_read_only)
-            {
-                // use the existing values to fill ybar in read only mode.
-                auto bit = _blocks.find(hkey);
-                if (bit == _blocks.end())
-                    continue;
-                BlockType &block = bit->second;
-
-                ybar = Eigen::VectorXf(BlockType::leaf_count());
-                int j = 0;
-                for (auto leaf_it = block.begin_leaf(); leaf_it != block.end_leaf(); ++leaf_it, ++j)
-                    ybar[j] = leaf_it->get_logits()[0];
-            }
             else
             {
                 // add to training data
